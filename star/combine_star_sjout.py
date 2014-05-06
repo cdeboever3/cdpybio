@@ -1,91 +1,232 @@
-import cPickle,re,sys,argparse,glob,pdb
+import argparse
+import pdb
+import re
+
 import pandas as pd
-import numpy as np
-from project_tools import *
+
+COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
+                'intron_motif', 'annotated',
+                'unique_junction_reads', 'multimap_junction_reads',
+                'max_overhang')
+
+def read_sj_out_tab(filename):
+    """Read an SJ.out.tab file as produced by the RNA-STAR aligner into a
+    pandas Dataframe
+
+    Parameters
+    ----------
+    filename : str of filename or file handle
+        Filename of the SJ.out.tab file you want to read in
+
+    Returns
+    -------
+    sj : pandas.DataFrame
+        Dataframe of splice junctions
+
+    """
+    def int_to_intron_motif(n):
+        if n == 0:
+            return 'non-canonical'
+        if n == 1:
+            return 'GT/AG'
+        if n == 2:
+            return 'CT/AC'
+        if n == 3:
+            return 'GC/AG'
+        if n == 4:
+            return 'CT/GC'
+        if n == 5:
+            return 'AT/AC'
+        if n == 6:
+            return 'GT/AT'
+
+    sj = pd.read_table(filename, header=None, names=COLUMN_NAMES)
+    sj.intron_motif = sj.intron_motif.map(int_to_intron_motif)
+    sj.annotated = sj.annotated.map(bool)
+    return sj
+
+def make_sjout_dict(fnL,define_sample_name=None):
+    """Read multiple sjouts, return dict with keys as sample names and values
+    as sjout dataframes
+
+    Parameters
+    ----------
+    fnL : list of strs of filenames or file handles
+        List of filename of the SJ.out.tab files to read in
+
+    define_sample_name : function that takes string as input
+        Function mapping filename to sample name. For instance, you may have the
+        sample name in the path and use a regex to extract it.  The sample names
+        will be used as the column names. If this is not provided, the columns
+        will be named as the input files.
+
+    Returns
+    -------
+    sjoutD : dict
+        Dict whose keys are sample names and values are sjout dataframes
+    
+    """
+    if define_sample_name == None:
+        define_sample_name = lambda x: x
+    else:
+        assert len(set([ define_sample_name(x) for x in fnL ])) == len(fnL)
+    sjoutD = dict()
+    for fn in fnL:
+        sample = define_sample_name(fn)
+        sjoutD[sample] = parse_sjout(fn)
+    return sjoutD
 
 def define_donor(row):
     if row['strand'] == '+':
-        return row['chrom'] + ':' + str(int(row['start'])) + ':' + row['strand']
-    elif row['strand'] == '-':
-        return row['chrom'] + ':' + str(int(row['end'])) + ':' + row['strand']
+        return '{}:{}:{}'.format(row['chrom'], row['first_bp_intron'], 
+                                 row['strand'])
+    if row['strand'] == '-':
+        return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
+                                 row['strand'])
 
 def define_acceptor(row):
     if row['strand'] == '+':
-        return row['chrom'] + ':' + str(int(row['end'])) + ':' + row['strand']
-    elif row['strand'] == '-':
-        return row['chrom'] + ':' + str(int(row['start'])) + ':' + row['strand']
+        return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
+                                 row['strand'])
+    if row['strand'] == '-':
+        return '{}:{}:{}'.format(row['chrom'], row['first_bp_intron'], 
+                                 row['strand'])
 
 def name_splice_site(L):
     return '{0}:{1}-{2}'.format(L[0],L[1],L[2])
 
-def parse_SJout(fn):
-    # 1: chrom, 2: first base of intron (1-based), 3: last base of intron (1-based), 4: strand, 
-    # 5: intron motif (0: non-canonical, 1: GT/AG, 2: CT/AC, 3: GC/AG, 4: CT/GC, 5: AT/AC, 6: GT/AT)
-    # 6: (0 unannotated, 1 annotated)
-    # 7: number of unique reads crossing junction
-    # 8: number of multi reads crossing junction
-    # 9: maximum spliced alignment overhang
-    df = pd.read_table(fn,header=None,names=['chrom','start','end','strand','motif','annotated','num_uniq','num_mult','max_splice'])
-    df.index = [ '{0}:{1}-{2}'.format(df.ix[x,'chrom'],df.ix[x,'start'],df.ix[x,'end']) for x in df.index ]
+def parse_sjout(fn):
+    df = pd.read_table(fn, header=None, names=COLUMN_NAMES)
+    df.index = [ '{0}:{1}-{2}'.format(df.ix[x,'chrom'],df.ix[x,'first_bp_intron'],df.ix[x,'last_bp_intron']) for x in df.index ]
     return df
 
-def combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_annotN,gencode_infoN,statsN):
-    # open file for writing stats
-    statsF = open(statsN,'w')
+def make_sjout_panel(sjoutD, total_jxn_cov_cutoff, statsN=None):
+    """Filter junctions from many sjout files and make panel
 
+    Parameters
+    ----------
+    sjoutD : dict
+        Dict whose keys are sample names and values are sjout dataframes
+
+    total_jxn_cov_cutoff : int
+        If the unique read coverage of a junction summed over all samples is not
+        greater than or equal to this value, the junction will not be included
+        in the final output.
+
+    statsN : filename str
+        If provided, some stats will be printed to this file
+
+    Returns
+    -------
+    sjoutP : pandas.Panel
+        Panel where each dataframe(?) corresponds to an sjout file filtered to
+        remove low coverage junctions.
+    
+    """
+    # set of all junctions
+    jxnS = reduce(lambda x,y: set(x) | set(y),
+                  [ sjoutD[k].index for k in sjoutD.keys() ])
+
+    jxn_keepS = set()
+    for jxn in jxnS:
+        if sum([ sjoutD[k].ix[jxn,'unique_junction_reads'] for k in sjoutD.keys() 
+                 if jxn in sjoutD[k].index ]) >= total_jxn_cov_cutoff:
+            jxn_keepS.add(jxn)
+
+    for k in sjoutD.keys():
+        sjoutD[k] = sjoutD[k].ix[jxn_keepS]
+
+    sjoutP = pd.Panel(sjoutD)
+    for col in ['unique_junction_reads', 'multimap_junction_reads',
+                'max_splice']:
+        sjoutP.ix[:,:,col] = sjoutP.ix[:,:,col].fillna(0)
+    
+    if statsN:
+        statsF = open(statsN,'w')
+
+        statsF.write('Number of junctions in sjout file per sample\n')
+        for k in sjoutD.keys():
+            statsF.write('{0}\t{1:,}\n'.format(k,sjoutD[k].shape[0]))
+        statsF.write('\n')
+  
+        statsF.write('sjout panel size\t{0}\n\n'.format(sjoutP.shape))
+        statsF.close()
+    return sjoutP
+
+def combine_star_sjout(fnL, total_jxn_cov_cutoff, statsN=None):
+    """Combine multiple sjout files into a single file with the unique read
+    coverage of each splice junction after filtering
+
+    Parameters
+    ----------
+    fnL : list of strs of filenames or file handles
+        List of filename of the SJ.out.tab files to read in
+
+    total_jxn_cov_cutoff : int
+        If the unique coverage of a junction summed over all samples is not
+        greater than or equal to this value, the junction will not be included
+        in the final output.
+
+    define_sample_name : function that takes string as input
+        Function mapping filename to sample name. For instance, you may have the
+        sample name in the path and use a regex to extract it.  The sample names
+        will be used as the column names. If this is not provided, the columns
+        will be named as the input files.
+
+    Returns
+    -------
+    sjoutD : dict
+        Dict whose keys are sample names and values are sjout dataframes
+    
+    """
+    sjoutD = make_sjout_dict(fnL,define_sample_name)
+    sjoutP = make_sjout_panel(sjoutD, total_jxn_cov_cutoff)
+   
+def filter_jxns_donor_acceptor(sjoutP, gencode_jxnN, statsN=None):
+gencode_jxnN, jxn_countN, 
+jxn_annotN, gencode_infoN, 
+    """Remove junctions that do not use a known donor or acceptor
+
+    Parameters
+    ----------
+    fnL : list of strs of filenames or file handles
+        List of filename of the SJ.out.tab files to read in
+
+    total_jxn_cov_cutoff: int
+        If the unique coverage of a junction summed over all samples is not
+        greater than or equal to this value, the junction will not be included
+        in the final output.
+
+    define_sample_name: function that takes string as input
+        Function mapping filename to sample name. For instance, you may have the
+        sample name in the path and use a regex to extract it.  The sample names
+        will be used as the column names. If this is not provided, the columns
+        will be named as the input files.
+
+    Returns
+    -------
+    sjoutD : dict
+        Dict whose keys are sample names and values are sjout dataframes
+    
+    """
     # regular expression for parsing splice site definitions
     sjRE = re.compile('(.*:.*-.*):(\+|-)')
     # regular expression to get splice jxn without strand
     juncRE = re.compile('(.*):(\d*)-(\d*):') 
     
-    ### Read Data and Make Data Structures ###
     # read gencode splice junction annotation 
-    gencode_juncDF = pd.read_table(gencode_jxnN,header=None,names=['junction','gene','chrom','start','end','strand'])
+    gencode_juncDF = pd.read_table(gencode_jxnN, header=None, 
+                                   names=['junction','gene','chrom',
+                                          'first_bp_intron','last_bp_intron',
+                                          'strand'])
     statsF.write('Number of gencode junctions\t{0:,}\n\n'.format(gencode_juncDF.shape[0]))
-   
-    # make dict to hold splice junction coverage info for each sample
-    SJoutD = dict()
-    for fn in fnL:
-        sample = define_basename('default',fn,basenameL)
-        SJoutD[sample] = parse_SJout(fn)
-
-    # write the size of each SJout file to the stats file
-    statsF.write('Number of junctions in SJout file per sample\n')
-    for k in SJoutD.keys():
-        statsF.write('{0}\t{1:,}\n'.format(k,SJoutD[k].shape[0]))
-    statsF.write('\n')
   
-    # filter junctions before making panel. This is necessary when we have many
-    # samples
-    # first, make set of all junctions
-    jxnS = reduce(lambda x,y: set(x) | set(y),[ SJoutD[k].index for k in SJoutD.keys() ])
-
-    # now, count how many reads span each junction and only keep those that pass filter
-    jxn_keepS = set()
-    for jxn in jxnS:
-        if sum([ SJoutD[k].ix[jxn,'num_uniq'] for k in SJoutD.keys() 
-                 if jxn in SJoutD[k].index ]) >= total_jxn_cov_cutoff:
-            jxn_keepS.add(jxn)
-
-    # keep only the junctions that pass the filter for each of the dataframes
-    for k in SJoutD.keys():
-        SJoutD[k] = SJoutD[k].ix[jxn_keepS]
-
-    # make panel out of dict of dataframes
-    SJoutP = pd.Panel(SJoutD)
-   
-    # Write the size of the SJout panel to the stats file
-    statsF.write('SJout panel size\t{0}\n\n'.format(SJoutP.shape))
-    
-    # replace NaN's with zeros for counting columns
-    SJoutP.ix[:,:,['num_uniq','num_mult','max_splice']] = SJoutP.ix[:,:,['num_uniq','num_mult','max_splice']].fillna(0)
-    
     ### Filter data ###
     # we already filtered according to total_jxn_cov_cutoff, so we'll name the panel
-    SJout_filteredP = SJoutP
+    sjout_filteredP = sjoutP
 
-    # make dataframe for junction annotation information. These are all of the jxn's from the star output after filtering (either in our splice jxn definitions or not) annotated with the information from the SJout file. I'm removing strand because I don't understand how star is assigning strand
-    annotDF = reduce(pd.DataFrame.combine_first,[ SJout_filteredP.ix[item,:,['chrom','start','end','motif','annotated']].dropna() for item in SJout_filteredP.items ])
+    # make dataframe for junction annotation information. These are all of the jxn's from the star output after filtering (either in our splice jxn definitions or not) annotated with the information from the sjout file. I'm removing strand because I don't understand how star is assigning strand
+    annotDF = reduce(pd.DataFrame.combine_first,[ sjout_filteredP.ix[item,:,['chrom','first_bp_intron','last_bp_intron','motif','annotated']].dropna() for item in sjout_filteredP.items ])
 
     # rename annotated column
     annotDF['star_annotated'] = annotDF.annotated == 1
@@ -96,12 +237,12 @@ def combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_anno
     annotDF.end = [ int(x) for x in annotDF.end]
     
     # remove junction annotation information (for memory and speed)
-    # SJout_filteredP = SJout_filteredP.drop(['chrom','start','end','strand','motif','annotated'],axis=2)
+    # sjout_filteredP = sjout_filteredP.drop(['chrom','first_bp_intron','last_bp_intron','strand','motif','annotated'],axis=2)
     
-    statsF.write('Number of splice junctions after coverage filtering: {0:,}\n'.format(SJout_filteredP.shape[1]))
+    statsF.write('Number of splice junctions after coverage filtering: {0:,}\n'.format(sjout_filteredP.shape[1]))
     statsF.write('Number STAR annotated: {0:,}\n\n'.format(annotDF['star_annotated'].sum()))
     
-    ### make combined SJout file ###
+    ### make combined sjout file ###
     # add column for junction without strand. This is how the STAR output is currently indexed
     gencode_juncDF['junction_no_strand'] = gencode_juncDF.junction.apply(lambda x: juncRE.match(x).group().strip(':'))
 
@@ -136,12 +277,12 @@ def combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_anno
     annotDF.ix[strandSE.index,'strand'] = strandSE.values
 
     # add column for start and end location (chromosome plus position for uniqueness)
-    annotDF['chr:start'] = annotDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['start']),axis=1)
-    annotDF['chr:end'] = annotDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['end']),axis=1)
+    annotDF['chr:start'] = annotDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1)
+    annotDF['chr:end'] = annotDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1)
 
     # make sets of gencode starts and ends
-    uniq_gencode_juncDF['chr:start'] = uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['start']),axis=1)
-    uniq_gencode_juncDF['chr:end'] = uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['end']),axis=1)
+    uniq_gencode_juncDF['chr:start'] = uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1)
+    uniq_gencode_juncDF['chr:end'] = uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1)
     gencode_startS = set(uniq_gencode_juncDF['chr:start'].values)
     gencode_endS = set(uniq_gencode_juncDF['chr:end'].values)
 
@@ -160,8 +301,8 @@ def combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_anno
 
     # now we'll figure out the genes for the non-gencode jxn's
     # map starts and ends to genes
-    start_geneSE = pd.Series(dict(zip(uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['start']),axis=1),uniq_gencode_juncDF.gene)))
-    end_geneSE = pd.Series(dict(zip(uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['end']),axis=1),uniq_gencode_juncDF.gene)))
+    start_geneSE = pd.Series(dict(zip(uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1),uniq_gencode_juncDF.gene)))
+    end_geneSE = pd.Series(dict(zip(uniq_gencode_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1),uniq_gencode_juncDF.gene)))
 
     for ind in annotDF[annotDF.gencode_annotated == False].index:
         cur_start = annotDF.ix[ind,'chr:start'] 
@@ -203,14 +344,14 @@ def combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_anno
     statsF.write('Number of novel junctions with gencode donor and acceptor\t{0:,}\n'.format(annotDF[annotDF.gencode_annotated].shape[0] - sum(annotDF.novel_donor) - sum(annotDF.novel_acceptor)))
 
     # sort by gene ID and start/end
-    annotDF = annotDF.sort(columns=['gene_id','start','end'])
+    annotDF = annotDF.sort(columns=['gene_id','first_bp_intron','last_bp_intron'])
 
     annotDF.to_csv(jxn_annotN,sep='\t')
     uniq_gencode_juncDF.to_csv(gencode_infoN,sep='\t')
     statsF.close()
 
     # make file with counts for the junctions we are interested in
-    countDF = SJout_filteredP.ix[:,[ juncRE.match(x).group().strip(':') for x in annotDF.index ],'num_uniq']
+    countDF = sjout_filteredP.ix[:,[ juncRE.match(x).group().strip(':') for x in annotDF.index ],'unique_junction_reads']
     countDF.index = annotDF.index
     countDF.to_csv(jxn_countN,sep='\t')
 
@@ -221,22 +362,41 @@ def main():
     jxn_countN          = 'junction_counts.tsv'
     jxn_annotN          = 'junction_info.tsv'
     gencode_infoN       = 'uniq_gencode_info.tsv'
-    statsN              = 'combined_SJout_stats.txt'
+    statsN              = 'combined_sjout_stats.txt'
 
     ### gather arguments from command line ###
-    parser = argparse.ArgumentParser(description='This script takes a list SJout files fom STAR alignments and combines them into a single python data structure after some filtering.')
-    parser.add_argument('SJout_files',nargs='+',help='STAR SJout files.')
-    parser.add_argument('-c',metavar='coverage_cutoff',type=int,default=total_jxn_cov_cutoff,help='If a junction is covered by less than this many reads in all samples, it will not be output in the counts file.')
-    parser.add_argument('-g',metavar='gencode_junctions',default=gencode_jxnN,help='Tsv file describing gencode splice junctions. Default: {0}'.format(gencode_jxnN))
-    parser.add_argument('-jc',metavar='jxn_counts',default=jxn_countN,help='File name for splice junction counts.'.format(jxn_countN))
-    parser.add_argument('-jg',metavar='jxn_genes',default=jxn_annotN,help='File name for splice junction annotations. This file is especially useful for novel junctions and adds strand information.'.format(jxn_annotN))
-    parser.add_argument('-gi',metavar='gencode_info',default=gencode_infoN,help='Output file for gencode splice junction info filtered to include only unique junctions. Also includes several extra columns'.format(gencode_infoN))
-    parser.add_argument('-f',metavar='stats_file',default=statsN,help='File to print some statistics to. Default: {0}'.format(statsN))
-    parser.add_argument('--debug', action='store_true', help='Enable python debugger.')
+    parser = argparse.ArgumentParser(
+        description='''This script takes a list sjout files fom STAR alignments
+        and combines them into a single python data structure after some
+        filtering.''', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('sjout_files', nargs='+', help='STAR sjout files.')
+    parser.add_argument('-c', metavar='coverage_cutoff', type=int,
+                        default=total_jxn_cov_cutoff, help='''If a junction is
+                        covered by less than this many unique reads summed over
+                        all samples, it will not be output in the counts
+                        file.''')
+    parser.add_argument('-g', metavar='gencode_junctions', default=gencode_jxnN,
+                        help='''Tsv file describing gencode splice 
+                        junctions.''')
+    parser.add_argument('-jc', metavar='jxn_counts', default=jxn_countN,
+                        help='''File name for splice junction 
+                        counts.''')
+    parser.add_argument('-jg', metavar='jxn_genes', default=jxn_annotN,
+                        help='''File name for splice junction annotations. This
+                        file is especially useful for novel junctions and adds
+                        strand information.''')
+    parser.add_argument('-gi', metavar='gencode_info', default=gencode_infoN,
+                        help='''Output file for gencode splice junction info
+                        filtered to include only unique junctions. Also includes
+                        several extra columns''')
+    parser.add_argument('-f', metavar='stats_file', default=statsN, help='''File
+                        to print some statistics to.''')
+    parser.add_argument('--debug', action='store_true', help='''Enable python
+                        debugger.''')
     
     args = parser.parse_args()
    
-    temp_fnL            = args.SJout_files
+    temp_fnL            = args.sjout_files
     total_jxn_cov_cutoff= args.c
     gencode_jxnN        = args.g
     jxn_countN          = args.jc
@@ -246,10 +406,6 @@ def main():
     debug               = args.debug
 
     ### start main ###
-    fnL = []
-    for fn in temp_fnL:
-        fnL += glob.glob(fn)
-    
     combine_star_sjout(fnL,total_jxn_cov_cutoff,gencode_jxnN,jxn_countN,jxn_annotN,gencode_infoN,statsN)
 
 if __name__ == '__main__':

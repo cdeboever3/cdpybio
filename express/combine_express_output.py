@@ -11,7 +11,7 @@ def combine_express_output(fnL,
                            column,
                            namesL=None,
                            transcript_to_geneN=None,
-                           define_basename=None,
+                           define_sample_name=None,
                            debug=False):
     """
     Combine eXpress output files
@@ -19,41 +19,41 @@ def combine_express_output(fnL,
     Parameters:
     -----------
 
-    fnL: list of strings
+    fnL : list of strs of filenames
         List of paths to results.xprs files.
 
-    column: string
+    column : string
         Column name of eXpress output to combine.
 
-    namesL: list of strings
-        Names to use for columns of output files. Overrides define_basename if
-        provided.
+    namesL : list of strings
+        Names to use for columns of output files. Overrides define_sample_name 
+        if provided.
 
-    transcript_to_geneN: string
+    transcript_to_geneN : string
         File with transcript-to-gene mapping. Transcripts should be in first
         column and genes in second column. 
 
-    define_basename: function that takes string as input
+    define_sample_name : function that takes string as input
         Function mapping filename to sample name (or basename). For instance,
         you may have the basename in the path and use a regex to extract it.
         The basenames will be used as the column names. If this is not provided,
         the columns will be named as the input files.
 
-    debug: boolean
+    debug : boolean
         Passing True will trigger any debugging statements.
 
     """
     if namesL is not None:
         assert len(namesL) == len(fnL)
-    if define_basename is None:
-        define_basename = lambda x: x
+    if define_sample_name is None:
+        define_sample_name = lambda x: x
     
     transcriptL = []
     for i,fn in enumerate(fnL):
         if namesL is not None:
             bn = namesL[i]
         else:
-            bn = define_basename(fn)
+            bn = define_sample_name(fn)
         tDF = pd.read_table(fn,index_col=1,header=0)
         se = tDF[column]
         se.name = bn
