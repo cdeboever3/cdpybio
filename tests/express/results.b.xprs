@@ -1,0 +1,4 @@
+bundle_id	target_id	length	eff_length	tot_counts	uniq_counts	est_counts	eff_counts	ambig_distr_alpha	ambig_distr_beta	fpkm	fpkm_conf_low	fpkm_conf_high	solvable
+1	TB	97	68.0	48	54	78.0	33.0	0.0	0.0	94.0	0.0	0.0	T
+2	TC	59	50.0	25	84	88.0	27.0	0.0	0.0	77.0	0.0	0.0	T
+3	TA	78	63.0	52	81	54.0	44.0	0.0	0.0	78.0	0.0	0.0	T
