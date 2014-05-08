@@ -4,6 +4,8 @@ import re
 
 import pandas as pd
 
+ANNOTATION_COLS = ['chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
+                   'annotated']
 COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                 'intron_motif', 'annotated',
                 'unique_junction_reads', 'multimap_junction_reads',
@@ -104,11 +106,6 @@ def make_sj_out_dict(fnL, define_sample_name=None):
         sj_outD[sample] = df
     return sj_outD
 
-def parse_sj_out(fn):
-    df = pd.read_table(fn, header=None, names=COLUMN_NAMES)
-    df.index = [ '{0}:{1}-{2}'.format(df.ix[x,'chrom'],df.ix[x,'first_bp_intron'],df.ix[x,'last_bp_intron']) for x in df.index ]
-    return df
-
 def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
     """Filter junctions from many sj_out files and make panel
 
@@ -130,6 +127,11 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
     sj_outP : pandas.Panel
         Panel where each dataframe(?) corresponds to an sj_out file filtered to
         remove low coverage junctions.
+
+    annotDF : pandas.DataFrame
+        Dataframe with values ANNOTATION_COLS = ['chrom', 'first_bp_intron', 
+        'last_bp_intron', 'intron_motif', 'annotated'] that are otherwise
+        duplicated in the panel.
     
     """
     # set of all junctions
@@ -152,15 +154,18 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
 
     # Some dataframes will be missing information like intron_motif etc. for 
     # junctions that were not observed in that sample. We'll add that info.
-    annot_cols = ['chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
-                  'annotated']
     annotDF = reduce(pd.DataFrame.combine_first,
-                     [ sj_outP.ix[item,:,annot_cols].dropna() for item in
+                     [ sj_outP.ix[item,:,ANNOTATION_COLS].dropna() for item in
                       sj_outP.items ])
     for col in annot_cols:
         sj_outP.ix[:,annotDF.index,col] = [ annotDF[col] for i in
                                                range(sj_outP.shape[0]) ]
     
+    # All of the splice junction annotation information is duplicated in each
+    # dataframe in the panel, so we'll make a single dataframe holding that
+    # information.
+    annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
+
     if statsN:
         statsF = open(statsN,'w')
 
@@ -171,7 +176,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
   
         statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
         statsF.close()
-    return sj_outP
+    return sj_outP,annotDF
 
 # def combine_star_sj_out(fnL, total_jxn_cov_cutoff, statsN=None):
 #     """Combine multiple sj_out files into a single file with the unique read
@@ -201,7 +206,43 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
 #     """
 #     sj_outD = make_sj_out_dict(fnL,define_sample_name)
 #     sj_outP = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
-   
+  
+def read_external_annotation(fn):
+    """Read file with junctions from some database. This does not have to be the
+    same splice junction database used with STAR
+
+    Parameters
+    ----------
+    fn: filename str
+        File with splice junction from annotation.
+
+    Returns
+    -------
+    juncDF : pandas.DataFrame
+        DataFrame indexed by splice junction
+    
+    """
+    juncDF = pd.read_table(
+        fn, header=None, names=['junction','gene','chrom',
+                                  'first_bp_intron','last_bp_intron', 'strand'])
+    
+    juncDF['junction_no_strand'] = juncDF.junction.apply(
+        lambda x: juncRE.match(x).group().strip(':'))
+
+    # In rare cases, a splice junction might be used by more than one gene. For
+    # my purposes, these cases are confounding, so I will remove all such splice
+    # junctions. 
+    junctions_to_keepSE = juncDF.junction_no_strand.value_counts() == 1
+    # Drop duplicate junctions, but this leaves one copy of the duplicate
+    # junction, so we will reindex and keep only the junctions we want.
+    juncDF = juncDF.drop_duplicates(cols='junction_no_strand')
+    juncDF.index = juncDF.junction_no_strand
+    juncDF = juncDF.ix[junctions_to_keepSE]
+    # Reindex with strand info.
+    juncDF.index = juncDF.junction
+    juncDF = juncDF.drop('junction',axis=1)
+    return juncDF
+
 def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
 # jxnN, jxn_countN, 
 # jxn_annotN, gencode_infoN, 
@@ -228,45 +269,20 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     sjRE = re.compile('(.*:.*-.*):(\+|-)')
     juncRE = re.compile('(.*):(\d*)-(\d*):') 
     
-    juncDF = pd.read_table(
-        jxnN, header=None, names=['junction','gene','chrom',
-                                  'first_bp_intron','last_bp_intron', 'strand'])
-    
-    statsF.write('Number of annotated junctions\t{0:,}\n\n'.format(juncDF.shape[0]))
-    statsF.write('Number STAR annotated: {0:,}\n\n'.format(annotDF['annotated'].sum()))
+    juncDF = read_external_annotation(fn)
+   
+    # All of the splice junction annotation information is duplicated in each
+    # dataframe in the panel, so we'll make a single dataframe holding that
+    # information.
+    annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
 
-    # TODO: I'm guessing I need to replace the STAR strand here with the
-    # external annotation strand.
-    
-    # add column for junction without strand. This is how the STAR output is currently indexed
-    juncDF['junction_no_strand'] = juncDF.junction.apply(lambda x: juncRE.match(x).group().strip(':'))
-
-    # find unique gencode junctions and keep them. Remove junctions used in more than one gene
-    junctions_to_keepSE = juncDF.junction_no_strand.value_counts() == 1
-    # drop duplicate junctions, but this leaves one copy of the duplicate junction
-    uniq_juncDF = juncDF.drop_duplicates(cols='junction_no_strand')
-    # so we will reindex and keep only the junctions we want
-    uniq_juncDF.index = uniq_juncDF.junction_no_strand
-    uniq_juncDF = uniq_juncDF.ix[junctions_to_keepSE]
-    # reindex with strand info
-    uniq_juncDF.index = uniq_juncDF.junction
-    uniq_juncDF = uniq_juncDF.drop('junction',axis=1)
-
-    # print number of unique gencode junctions
-    statsF.write('Number of gencode junctions used only in one gene\t{0:,}\n\n'.format(uniq_juncDF.shape[0]))
-
-    # make column showing whether junction is in gencode
+    # Add column showing whether junction is in external annotation.
     annotDF['ext_annotated'] = False
-    annotDF.ix[set(annotDF.index) & set(uniq_juncDF.junction_no_strand),'ext_annotated'] = True
+    annotDF.ix[set(annotDF.index) & set(juncDF.junction_no_strand),
+               'ext_annotated'] = True
 
-    # print number of junctions in gencode
-    statsF.write('Number of observed junctions in gencode\t{0:,}\n'.format(sum(annotDF.ext_annotated)))
-    statsF.write('Number of observed junctions not in gencode\t{0:,}\n'.format(annotDF.shape[0] - sum(annotDF.ext_annotated)))
-    statsF.write('Number of observed junctions not in gencode but in STAR sj db\t{0:,}\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'])))
-    statsF.write('Number of observed junctions not in gencode and not in STAR sj db\t{0:,}\n\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)))
-  
     # add strand information to annotation of STAR junctions that are in gencode
-    strandSE = pd.Series(uniq_juncDF.strand.values,index=uniq_juncDF.junction_no_strand)
+    strandSE = pd.Series(juncDF.strand.values,index=juncDF.junction_no_strand)
     strandSE = strandSE[set(strandSE.index) & set(annotDF.index)]
     annotDF['strand'] = '*'
     annotDF.ix[strandSE.index,'strand'] = strandSE.values
@@ -276,10 +292,10 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     annotDF['chr:end'] = annotDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1)
 
     # make sets of gencode starts and ends
-    uniq_juncDF['chr:start'] = uniq_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1)
-    uniq_juncDF['chr:end'] = uniq_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1)
-    gencode_startS = set(uniq_juncDF['chr:start'].values)
-    gencode_endS = set(uniq_juncDF['chr:end'].values)
+    juncDF['chr:start'] = juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1)
+    juncDF['chr:end'] = juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1)
+    gencode_startS = set(juncDF['chr:start'].values)
+    gencode_endS = set(juncDF['chr:end'].values)
 
     # remove junctions that don't have a start or end shared with gencode
     junctions_to_removeSE = annotDF[annotDF.ext_annotated == False].apply(
@@ -290,14 +306,14 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     statsF.write('Number of junctions that share start or end with gencode junction\t{0:,}\n\n'.format(annotDF.shape[0]))
 
     # add column indicating which gene the junctions belong to for gencode jxn's
-    geneSE = pd.Series(dict(zip(uniq_juncDF.junction_no_strand.values,uniq_juncDF.gene)))
+    geneSE = pd.Series(dict(zip(juncDF.junction_no_strand.values,juncDF.gene)))
     annotDF['gene_id'] = ''
     annotDF['gene_id'] = geneSE[annotDF.index]
 
     # now we'll figure out the genes for the non-gencode jxn's
     # map starts and ends to genes
-    start_geneSE = pd.Series(dict(zip(uniq_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1),uniq_juncDF.gene)))
-    end_geneSE = pd.Series(dict(zip(uniq_juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1),uniq_juncDF.gene)))
+    start_geneSE = pd.Series(dict(zip(juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['first_bp_intron']),axis=1),juncDF.gene)))
+    end_geneSE = pd.Series(dict(zip(juncDF.apply(lambda x: '{0}:{1}'.format(x['chrom'],x['last_bp_intron']),axis=1),juncDF.gene)))
 
     for ind in annotDF[annotDF.ext_annotated == False].index:
         cur_start = annotDF.ix[ind,'chr:start'] 
@@ -309,7 +325,7 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
             annotDF.ix[ind,'gene_id'] = end_geneSE[cur_end]
 
     # now that we have the genes, we can assign strands to all junctions
-    strandSE = pd.Series(dict(zip(uniq_juncDF.gene,uniq_juncDF.strand)))
+    strandSE = pd.Series(dict(zip(juncDF.gene,juncDF.strand)))
     for ind in annotDF[annotDF.ext_annotated == False].index:
         annotDF.ix[ind,'strand'] = strandSE[annotDF.ix[ind,'gene_id']]
 
@@ -321,10 +337,10 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     annotDF['acceptor'] = annotDF.apply(lambda x: sj_out_acceptor(x),axis=1)
 
     # and whether the donor or acceptor is novel
-    uniq_juncDF['donor'] = uniq_juncDF.apply(lambda x: sj_out_donor(x),axis=1)
-    uniq_juncDF['acceptor'] = uniq_juncDF.apply(lambda x: sj_out_acceptor (x),axis=1)
-    gencode_donorS = set(uniq_juncDF.donor)
-    gencode_acceptorS = set(uniq_juncDF.acceptor)
+    juncDF['donor'] = juncDF.apply(lambda x: sj_out_donor(x),axis=1)
+    juncDF['acceptor'] = juncDF.apply(lambda x: sj_out_acceptor (x),axis=1)
+    gencode_donorS = set(juncDF.donor)
+    gencode_acceptorS = set(juncDF.acceptor)
     annotDF['novel_donor'] = False
     annotDF['novel_acceptor'] = False
     for ind in annotDF[annotDF.ext_annotated == False].index:
@@ -342,13 +358,28 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     annotDF = annotDF.sort(columns=['gene_id','first_bp_intron','last_bp_intron'])
 
     annotDF.to_csv(jxn_annotN,sep='\t')
-    uniq_juncDF.to_csv(gencode_infoN,sep='\t')
-    statsF.close()
+    juncDF.to_csv(gencode_infoN,sep='\t')
 
     # make file with counts for the junctions we are interested in
     countDF = sj_out_filteredP.ix[:,[ juncRE.match(x).group().strip(':') for x in annotDF.index ],'unique_junction_reads']
     countDF.index = annotDF.index
     countDF.to_csv(jxn_countN,sep='\t')
+
+    # TODO: new stats location, everything above should come down
+    statsF = open(statsN,'w')
+    statsF.write('Number of annotated junctions\t{0:,}\n\n'.format(juncDF.shape[0]))
+    statsF.write('Number STAR annotated: {0:,}\n\n'.format(annotDF['annotated'].sum()))
+
+    # print number of unique gencode junctions
+    statsF.write('Number of gencode junctions used only in one gene\t{0:,}\n\n'.format(juncDF.shape[0]))
+
+    # print number of junctions in gencode
+    statsF.write('Number of observed junctions in gencode\t{0:,}\n'.format(sum(annotDF.ext_annotated)))
+    statsF.write('Number of observed junctions not in gencode\t{0:,}\n'.format(annotDF.shape[0] - sum(annotDF.ext_annotated)))
+    statsF.write('Number of observed junctions not in gencode but in STAR sj db\t{0:,}\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'])))
+    statsF.write('Number of observed junctions not in gencode and not in STAR sj db\t{0:,}\n\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)))
+  
+    statsF.close()
 
 def main():
     ### magic variables ###
