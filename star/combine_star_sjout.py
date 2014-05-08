@@ -9,15 +9,15 @@ COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                 'unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang')
 
-def sj_out_junction(row):
+def _sj_out_junction(row):
     return '{}:{}-{}'.format(row['chrom'], row['first_bp_intron'],
                              row['last_bp_intron'])
 
-def sj_out_junction_with_strand(row):
+def _sj_out_junction_with_strand(row):
     return '{}:{}-{}:{}'.format(row['chrom'], row['first_bp_intron'],
                              row['last_bp_intron'], row['strand'])
 
-def sj_out_donor(row):
+def _sj_out_donor(row):
     if row['strand'] == '+':
         return '{}:{}:{}'.format(row['chrom'], row['first_bp_intron'], 
                                  row['strand'])
@@ -25,7 +25,7 @@ def sj_out_donor(row):
         return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
                                  row['strand'])
 
-def sj_out_acceptor(row):
+def _sj_out_acceptor(row):
     if row['strand'] == '+':
         return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
                                  row['strand'])
@@ -98,7 +98,7 @@ def make_sj_out_dict(fnL, define_sample_name=None):
     for fn in fnL:
         sample = define_sample_name(fn)
         df = read_sj_out_tab(fn)
-        index = df.apply(lambda x: sj_out_junction(x), axis=1)
+        index = df.apply(lambda x: _sj_out_junction(x), axis=1)
         assert len(index) == len(set(index))
         df.index = index
         sj_outD[sample] = df
@@ -317,11 +317,11 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
     annotDF.index = [ x + ':' + annotDF.ix[x,'strand'] for x in annotDF.index ]
 
     # now we'll add donor and acceptor info
-    annotDF['donor'] = annotDF.apply(lambda x: sj_out_donor(x),axis=1)
-    annotDF['acceptor'] = annotDF.apply(lambda x: sj_out_acceptor(x),axis=1)
+    annotDF['donor'] = annotDF.apply(lambda x: _sj_out_donor(x),axis=1)
+    annotDF['acceptor'] = annotDF.apply(lambda x: _sj_out_acceptor(x),axis=1)
 
     # and whether the donor or acceptor is novel
-    uniq_juncDF['donor'] = uniq_juncDF.apply(lambda x: sj_out_donor(x),axis=1)
+    uniq_juncDF['donor'] = uniq_juncDF.apply(lambda x: _sj_out_donor(x),axis=1)
     uniq_juncDF['acceptor'] = uniq_juncDF.apply(lambda x: sj_out_acceptor (x),axis=1)
     gencode_donorS = set(uniq_juncDF.donor)
     gencode_acceptorS = set(uniq_juncDF.acceptor)
