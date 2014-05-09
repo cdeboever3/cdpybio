@@ -243,7 +243,7 @@ def read_external_annotation(fn):
     extDF = extDF.drop('junction',axis=1)
     return extDF
 
-def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
+def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
 # jxnN, jxn_countN, 
 # jxn_annotN, gencode_infoN, 
     """Remove junctions that do not use an annotated donor or acceptor according
@@ -256,14 +256,16 @@ def filter_jxns_donor_acceptor(sj_outP, jxnN, statsN=None):
         Panel where each dataframe(?) corresponds to an sj_out file filtered to
         remove low coverage junctions.
 
-    jxnN: filename str
-        File defining annotated splice sites. These can differ from those
-        provided to STAR for alignment. TODO: describe file format briefly
+    annotDF: pandas.DataFrame
+
+    extDF: pandas.DataFrame
+        Dataframe containing information about annotated splice sites. These can
+        differ from those provided to STAR for alignment. TODO: describe needed
+        columns
 
     Returns
     -------
-    sj_outD : dict
-        Dict whose keys are sample names and values are sj_out dataframes
+    TODO
     
     """
     sjRE = re.compile('(.*:.*-.*):(\+|-)')
