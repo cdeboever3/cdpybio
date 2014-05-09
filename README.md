@@ -1,4 +1,4 @@
-bioscripts
+cdpybio
 ==========
 
-Various bioinformatics scripts that don't need their own repositories.
+Python module with various useful things.
