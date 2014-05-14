@@ -1,15 +1,16 @@
 import argparse
 import pdb
-import re
 
 import pandas as pd
 
-ANNOTATION_COLS = ['chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
-                   'annotated']
+# Column labels for SJ.out.tab.
 COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                 'intron_motif', 'annotated',
                 'unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang')
+# Subset of columns from SJ.out.tab.
+ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
+                   'annotated')
 
 def _sj_out_junction(row):
     return '{}:{}-{}'.format(row['chrom'], row['first_bp_intron'],
@@ -214,7 +215,7 @@ def read_external_annotation(fn):
     Parameters
     ----------
     fn: filename str
-        File with splice junction from annotation.
+    File with splice junctions from annotation. #TODO: describe file format
 
     Returns
     -------
@@ -222,6 +223,7 @@ def read_external_annotation(fn):
         DataFrame indexed by splice junction
     
     """
+    #TODO: will this file have a header?
     extDF = pd.read_table(
         fn, header=None, names=['junction','gene','chrom',
                                   'first_bp_intron','last_bp_intron', 'strand'])
@@ -240,7 +242,7 @@ def read_external_annotation(fn):
     extDF = extDF.ix[junctions_to_keepSE]
     # Reindex with strand info.
     extDF.index = extDF.junction
-    extDF = extDF.drop('junction',axis=1)
+    extDF = extDF.drop('junction', axis=1)
     return extDF
 
 def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
@@ -265,14 +267,14 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
 
     Returns
     -------
-    TODO
+    #TODO
     
     """
+    import re
+
     sjRE = re.compile('(.*:.*-.*):(\+|-)')
     juncRE = re.compile('(.*):(\d*)-(\d*):') 
     
-    extDF = read_external_annotation(fn)
-   
     # All of the splice junction annotation information is duplicated in each
     # dataframe in the panel, so we'll make a single dataframe holding that
     # information.
@@ -366,7 +368,7 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
     # make file with counts for the junctions we are interested in
     countDF = sj_out_filteredP.ix[:,[ juncRE.match(x).group().strip(':') for x in annotDF.index ],'unique_junction_reads']
     countDF.index = annotDF.index
-    countDF.to_csv(jxn_countN,sep='\t')
+    # countDF.to_csv(jxn_countN,sep='\t')
 
     # TODO: new stats location, everything above should come down
     statsF = open(statsN,'w')
@@ -393,6 +395,34 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
     statsF.write('Number of novel junctions with gencode donor and acceptor\t{0:,}\n'.format(annotDF[annotDF.ext_annotated].shape[0] - sum(annotDF.novel_donor) - sum(annotDF.novel_acceptor)))
 
     statsF.close()
+   
+    #TODO: return the right stuff
+    return countDF,annotDF
+
+def combine_sj_out(fnL, total_jxn_cov_cutoff=20, define_sample_name=None,
+                   statsN=None):
+    """Combine SJ.out.tab files from STAR by comparing splice junctions to an
+    external annotation to discover novel junctions and filtering based on
+    coverage.
+
+    Parameters
+    ----------
+    #TODO
+
+    Returns
+    -------
+    #TODO
+    
+    """
+    sj_outD = make_sj_out_dict(fnL, define_sample_name=None)
+    sj_outP,annotDF = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
+                                        statsN=None)
+    extDF = read_external_annotation(fn)
+    # TODO: make sure that I'm getting the right output from this function below
+    countsDF, annotDF = filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, 
+                                                   statsN=None)
+    #TODO: make return situation, maybe print to file is a file is provided via
+    # command line or whatever
 
 def main():
     ### magic variables ###

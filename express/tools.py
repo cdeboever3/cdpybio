@@ -8,7 +8,7 @@ import sys
 import pandas as pd
 
 def combine_express_output(fnL,
-                           column,
+                           column='eff_counts',
                            namesL=None,
                            transcript_to_geneN=None,
                            define_sample_name=None,
