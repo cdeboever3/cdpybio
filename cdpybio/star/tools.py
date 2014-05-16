@@ -135,6 +135,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
         duplicated in the panel.
     
     """
+    # Remove any junctions that don't have any uniquely mapped junction reads
+    
+
     # set of all junctions
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
@@ -158,7 +161,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
     annotDF = reduce(pd.DataFrame.combine_first,
                      [ sj_outP.ix[item,:,ANNOTATION_COLS].dropna() for item in
                       sj_outP.items ])
-    for col in annot_cols:
+    for col in ANNOTATION_COLS:
         sj_outP.ix[:,annotDF.index,col] = [ annotDF[col] for i in
                                                range(sj_outP.shape[0]) ]
     
@@ -215,7 +218,9 @@ def read_external_annotation(fn):
     Parameters
     ----------
     fn: filename str
-    File with splice junctions from annotation. #TODO: describe file format
+    File with splice junctions from annotation. The file should have a header
+    and contained the following columns  'gene', 'chrom', 'start', 'end', 
+    'strand', 'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
 
     Returns
     -------
@@ -223,10 +228,7 @@ def read_external_annotation(fn):
         DataFrame indexed by splice junction
     
     """
-    #TODO: will this file have a header?
-    extDF = pd.read_table(
-        fn, header=None, names=['junction','gene','chrom',
-                                  'first_bp_intron','last_bp_intron', 'strand'])
+    extDF = pd.read_table(fn, header=0)
     
     extDF['junction_no_strand'] = extDF.junction.apply(
         lambda x: juncRE.match(x).group().strip(':'))
@@ -246,8 +248,6 @@ def read_external_annotation(fn):
     return extDF
 
 def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
-# jxnN, jxn_countN, 
-# jxn_annotN, gencode_infoN, 
     """Remove junctions that do not use an annotated donor or acceptor according
     to external junction annotation. Add strand and gene information for
     junctions according to external annoation (STAR strand ignored).

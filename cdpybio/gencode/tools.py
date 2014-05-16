@@ -16,7 +16,21 @@ def _gencode_acceptor(chrom,start,end,strand):
         return '{}:{}:{}'.format(chrom,start,strand)
 
 def make_splice_junction_df(fn,type='gene'):
-    """
+    """Read the Gencode gtf file and make a pandas dataframe describing the 
+    splice junctions
+
+    Parameters
+    ----------
+    filename : str of filename 
+        Filename of the Gencode gtf file
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Dataframe of splice junctions with the following columns 'gene',
+        'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end', 'donor',
+        'acceptor', 'intron'
+
     """
     import itertools as it
 
@@ -80,8 +94,8 @@ def make_splice_junction_df(fn,type='gene'):
                 count += 1
             except StopIteration:
                 eof = True
-        if count > last_count*100000:
-            print >>sys.stderr, '{0}\r'.format(count)
+        # if count > last_count*100000:
+        #     print >>sys.stderr, '{0}\r'.format(count)
             last_count += 1
     header = ['gene', 'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end',
               'donor', 'acceptor', 'intron']
