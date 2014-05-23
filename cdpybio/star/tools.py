@@ -98,6 +98,10 @@ def make_sj_out_dict(fnL, define_sample_name=None):
     else:
         assert len(set([ define_sample_name(x) for x in fnL ])) == len(fnL)
     sj_outD = dict()
+    for k in sj_outD.keys():
+        df = sj_outD[k]
+        sj_outD[k] = df[df.unique_junction_reads > 0]
+
     for fn in fnL:
         sample = define_sample_name(fn)
         df = read_sj_out_tab(fn)
@@ -135,9 +139,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
         duplicated in the panel.
     
     """
-    # Remove any junctions that don't have any uniquely mapped junction reads
-    
-
+    # Remove any junctions that don't have any uniquely mapped junction reads.
+    # Even if a junction passes the cutoff in other samples, we are only
+    # concerned with unique counts.
     # set of all junctions
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
@@ -258,16 +262,22 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
         Panel where each dataframe(?) corresponds to an sj_out file filtered to
         remove low coverage junctions.
 
-    annotDF: pandas.DataFrame
+    annotDF : pandas.DataFrame
 
-    extDF: pandas.DataFrame
+    extDF : pandas.DataFrame
         Dataframe containing information about annotated splice sites. These can
-        differ from those provided to STAR for alignment. TODO: describe needed
-        columns
+        differ from those provided to STAR for alignment. The dataframe should
+        have the following columns: 'gene', 'chrom', 'start', 'end', 'strand',
+        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'
 
     Returns
     -------
-    #TODO
+    countDF :  pandas.DataFrame
+        Number of unique junction spanning reads for each junction that passed
+        filtering criteria.
+
+    annotDF : pandas.DataFrame
+        Annotation information for junctions that passed filtering criteria.
     
     """
     import re
@@ -370,34 +380,67 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
     countDF.index = annotDF.index
     # countDF.to_csv(jxn_countN,sep='\t')
 
-    # TODO: new stats location, everything above should come down
+    # TODO: new stats location, everything above should come down. I may need to
+    # keep track some stats above and propagate them down.
     statsF = open(statsN,'w')
-    statsF.write('Number of annotated junctions\t{0:,}\n\n'.format(extDF.shape[0]))
-    statsF.write('Number STAR annotated: {0:,}\n\n'.format(annotDF['annotated'].sum()))
+
+    t = extDF.shape[0]
+    statsF.write('''Number of annotated junctions\t{0:,}\n\n'''.format(t))
+
+    t = annotDF['annotated'].sum()
+    statsF.write('''Number STAR annotated: {0:,}\n\n'''.format(t))
 
     # print number of unique gencode junctions
-    statsF.write('Number of gencode junctions used only in one gene\t{0:,}\n\n'.format(extDF.shape[0]))
+    t = extDF.shape[0])
+    statsF.write('''Number of gencode junctions used only in one
+                 gene\t{0:,}\n\n'''.format(t)
 
     # print number of junctions in gencode
-    statsF.write('Number of observed junctions in gencode\t{0:,}\n'.format(sum(annotDF.ext_annotated)))
-    statsF.write('Number of observed junctions not in gencode\t{0:,}\n'.format(annotDF.shape[0] - sum(annotDF.ext_annotated)))
-    statsF.write('Number of observed junctions not in gencode but in STAR sj db\t{0:,}\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'])))
-    statsF.write('Number of observed junctions not in gencode and not in STAR sj db\t{0:,}\n\n'.format(sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)))
+    t = sum(annotDF.ext_annotated)
+    statsF.write('''Number of observed junctions in
+                 gencode\t{0:,}\n'''.format(t))
+
+    t = annotDF.shape[0] - sum(annotDF.ext_annotated)
+    statsF.write('''Number of observed junctions not in
+                 gencode\t{0:,}\n'''.format(t))
+
+    t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'])
+    statsF.write('''Number of observed junctions not in gencode but in STAR sj
+                 db\t{0:,}\n'''.format(t))
+
+    t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)
+    statsF.write('''Number of observed junctions not in gencode and not in STAR
+                 sj db\t{0:,}\n\n'''.format(t))
   
     # print number of junctions remaining
-    statsF.write('Number of junctions that share start or end with gencode junction\t{0:,}\n\n'.format(annotDF.shape[0]))
+    t = annotDF.shape[0]
+    statsF.write('Number of junctions that share start or end with gencode
+                 junction\t{0:,}\n\n'.format(t))
 
     # print novel donor and acceptor info
-    statsF.write('Number of novel donors\t{0:,}\n'.format(len(set(annotDF[annotDF.novel_donor].donor))))
-    statsF.write('Number of novel junctions with novel donors\t{0:,}\n'.format(sum(annotDF.novel_donor)))
-    statsF.write('Number of novel acceptors\t{0:,}\n'.format(len(set(annotDF[annotDF.novel_acceptor].acceptor))))
-    statsF.write('Number of novel junctions with novel acceptors\t{0:,}\n'.format(sum(annotDF.novel_acceptor)))
-    statsF.write('Number of novel junctions with gencode donor and acceptor\t{0:,}\n'.format(annotDF[annotDF.ext_annotated].shape[0] - sum(annotDF.novel_donor) - sum(annotDF.novel_acceptor)))
+    t = len(set(annotDF[annotDF.novel_donor].donor))
+    statsF.write('''Number of novel donors\t{0:,}\n'''.format(t))
+
+    t = sum(annotDF.novel_donor)
+    statsF.write('''Number of novel junctions with novel
+                 donors\t{0:,}\n'''.format(t))
+
+    t = len(set(annotDF[annotDF.novel_acceptor].acceptor))
+    statsF.write('''Number of novel acceptors\t{0:,}\n'''.format(t))
+
+    t = sum(annotDF.novel_acceptor))
+    statsF.write('''Number of novel junctions with novel
+                 acceptors\t{0:,}\n'''.format(t))
+
+    t = annotDF[annotDF.ext_annotated].shape[0] - 
+                 sum(annotDF.novel_donor) - 
+                 sum(annotDF.novel_acceptor)
+    statsF.write('''Number of novel junctions with gencode donor and
+                 acceptor\t{0:,}\n'''.format(t))
 
     statsF.close()
    
-    #TODO: return the right stuff
-    return countDF,annotDF
+    return countDF, annotDF
 
 def combine_sj_out(fnL, total_jxn_cov_cutoff=20, define_sample_name=None,
                    statsN=None):
@@ -407,7 +450,18 @@ def combine_sj_out(fnL, total_jxn_cov_cutoff=20, define_sample_name=None,
 
     Parameters
     ----------
-    #TODO
+    fnL : list of strings 
+        Filenames/locations of SJ.out.tab files to combine.
+
+    total_jxn_cov_cutoff : int
+        Discard junctions with less than this many reads summed over all
+        samples.
+
+    define_samle_name : function
+        A function mapping the SJ.out.tab filename/path to a sample name.
+
+    statsN : string
+        File to write statistics to.
 
     Returns
     -------
