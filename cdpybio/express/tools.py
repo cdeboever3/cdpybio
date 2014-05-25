@@ -10,7 +10,7 @@ import pandas as pd
 def combine_express_output(fnL,
                            column='eff_counts',
                            namesL=None,
-                           transcript_to_geneN=None,
+                           tgN=None,
                            define_sample_name=None,
                            debug=False):
     """
@@ -29,7 +29,7 @@ def combine_express_output(fnL,
         Names to use for columns of output files. Overrides define_sample_name 
         if provided.
 
-    transcript_to_geneN : string
+    tgN : string
         File with transcript-to-gene mapping. Transcripts should be in first
         column and genes in second column. 
 
@@ -54,26 +54,29 @@ def combine_express_output(fnL,
             bn = namesL[i]
         else:
             bn = define_sample_name(fn)
-        tDF = pd.read_table(fn,index_col=1,header=0)
+        tDF = pd.read_table(fn, index_col=1, header=0)
         se = tDF[column]
         se.name = bn
         transcriptL.append(se)
     transcriptDF = pd.DataFrame(transcriptL).T
     transcriptDF.index.name = 'transcript'
+    # There should not be any missing values.
+    if transcriptDF.shape != transcriptDF.dropna().shape:
+        sys.stderr.write('''Missing values in eXpress output. Check that the
+                         same reference was used for all output files.\n''')
+        sys.exit(1)
 
-    if transcript_to_geneN is not None:
-        tgDF = pd.read_table(transcript_to_geneN,
+    if tgN is not None:
+        tgDF = pd.read_table(tgN,
                              index_col=0,
                              header=None,
                              names=['gene_id'])
         geneDF = copy.deepcopy(transcriptDF)
         geneDF['gene'] = tgDF.ix[geneDF.index]
         geneDF = geneDF.groupby('gene').sum()
-
-    if geneDF is not None:
-        return transcriptDF,geneDF
+        return transcriptDF, geneDF
     else:
-        return transcriptDF,None
+        return transcriptDF, None
 
 def main():
     column = 'eff_counts'
@@ -120,7 +123,7 @@ def main():
     namesL = args.names
     column = args.column
     transcript_outN = args.t
-    transcript_to_geneN = args.tg
+    tgN = args.tg
     gene_outN = args.g
     debug = args.debug
 
@@ -138,7 +141,7 @@ def main():
     transcriptDF,geneDF = combine_express_output(fnL,
                                                  column,
                                                  namesL,
-                                                 transcript_to_geneN,
+                                                 tgN,
                                                  None,
                                                  debug)
     transcriptDF.to_csv(transcript_outN,sep='\t')
