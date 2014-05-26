@@ -1,7 +1,5 @@
 import argparse
-import copy
 import glob
-import os
 import pdb
 import sys
 
@@ -71,6 +69,7 @@ def combine_express_output(fnL,
                              index_col=0,
                              header=None,
                              names=['gene_id'])
+        import copy
         geneDF = copy.deepcopy(transcriptDF)
         geneDF['gene'] = tgDF.ix[geneDF.index]
         geneDF = geneDF.groupby('gene').sum()
