@@ -69,13 +69,13 @@ def read_sj_out_tab(filename):
     sj.annotated = sj.annotated.map(bool)
     return sj
 
-def make_sj_out_dict(fnL, define_sample_name=None):
+def make_sj_out_dict(fns, define_sample_name=None):
     """Read multiple sj_outs, return dict with keys as sample names and values
     as sj_out dataframes
 
     Parameters
     ----------
-    fnL : list of strs of filenames or file handles
+    fns : list of strs of filenames or file handles
         List of filename of the SJ.out.tab files to read in
 
     define_sample_name : function that takes string as input
@@ -93,13 +93,13 @@ def make_sj_out_dict(fnL, define_sample_name=None):
     if define_sample_name == None:
         define_sample_name = lambda x: x
     else:
-        assert len(set([ define_sample_name(x) for x in fnL ])) == len(fnL)
+        assert len(set([ define_sample_name(x) for x in fns ])) == len(fns)
     sj_outD = dict()
     for k in sj_outD.keys():
         df = sj_outD[k]
         sj_outD[k] = df[df.unique_junction_reads > 0]
 
-    for fn in fnL:
+    for fn in fns:
         sample = define_sample_name(fn)
         df = read_sj_out_tab(fn)
         index = df.apply(lambda x: _sj_out_junction(x), axis=1)
@@ -108,7 +108,7 @@ def make_sj_out_dict(fnL, define_sample_name=None):
         sj_outD[sample] = df
     return sj_outD
 
-def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
+def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     """Filter junctions from many sj_out files and make panel
 
     Parameters
@@ -121,7 +121,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
         greater than or equal to this value, the junction will not be included
         in the final output.
 
-    statsN : filename str
+    statsfile : filename str
         If provided, some stats will be printed to this file
 
     Returns
@@ -171,8 +171,8 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
     # information.
     annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
 
-    if statsN:
-        statsF = open(statsN,'w')
+    if statsfile:
+        statsF = open(statsfile,'w')
 
         statsF.write('Number of junctions in sj_out file per sample\n')
         for k in sj_outD.keys():
@@ -183,7 +183,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsN=None):
         statsF.close()
     return sj_outP,annotDF
 
-def read_external_annotation(fn, statsN=None):
+def read_external_annotation(fn, statsfile=None):
     """Read file with junctions from some database. This does not have to be the
     same splice junction database used with STAR
 
@@ -194,7 +194,7 @@ def read_external_annotation(fn, statsN=None):
         header and contained the following columns  'gene', 'chrom', 'start',
         'end', 'strand', 'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
 
-    statsN : string
+    statsfile : string
         File to write statistics to.
 
     Returns
@@ -221,8 +221,8 @@ def read_external_annotation(fn, statsN=None):
     extDF.index = extDF.junction
     extDF = extDF.drop('junction', axis=1)
 
-    if statsN:
-        f = open(statsN, 'w')
+    if statsfile:
+        f = open(statsfile, 'w')
         f.write('Read external annotation\t{}\n'.format(fn))
         f.write('Total number of junctions\t{}\n'.format(total_num))
         f.write('''Number of junctions used in only one
@@ -231,7 +231,7 @@ def read_external_annotation(fn, statsN=None):
 
     return extDF
 
-def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
+def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     """Remove junctions that do not use an annotated donor or acceptor according
     to external junction annotation. Add strand and gene information for
     junctions according to external annoation (STAR strand ignored).
@@ -355,8 +355,8 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
     countDF = sj_out_filteredP.ix[:, L, 'unique_junction_reads']
     countDF.index = annotDF.index
 
-    if statsN:
-        f = open(statsN, 'w')
+    if statsfile:
+        f = open(statsfile, 'w')
 
         t = extDF.shape[0]
         f.write('''Number of junctions in external 
@@ -406,38 +406,63 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsN=None):
    
     return countDF, annotDF
 
-def combine_sj_out(fnL, total_jxn_cov_cutoff=20, define_sample_name=None,
-                   statsN=None):
-    """Combine SJ.out.tab files from STAR by comparing splice junctions to an
-    external annotation to discover novel junctions and filtering based on
-    coverage.
+def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20, 
+                   define_sample_name=None, statsfile=None):
+    """Combine SJ.out.tab files from STAR by filtering based on coverage and
+    comparing to an external annotation to discover novel junctions.
 
     Parameters
     ----------
-    fnL : list of strings 
-        Filenames/locations of SJ.out.tab files to combine.
+    fns : list of strings 
+        Filenames of SJ.out.tab files to combine.
+
+    external_db : str
+        Filename of splice junction information from external database. The file
+        should have a header and contained the following columns  'gene',
+        'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end', 'donor',
+        'acceptor', 'intron'.
 
     total_jxn_cov_cutoff : int
         Discard junctions with less than this many reads summed over all
         samples.
 
     define_samle_name : function
-        A function mapping the SJ.out.tab filename/path to a sample name.
+        A function mapping the SJ.out.tab filenames to sample names.
 
-    statsN : string
-        File to write statistics to.
+    statsfile : string
+        File to write statistics to. Statistics are not output if a filename is
+        not provided.
 
     Returns
     -------
-    #TODO
+    countDF :  pandas.DataFrame
+        Number of unique junction spanning reads for each junction that passed
+        filtering criteria.
+
+    annotDF : pandas.DataFrame
+        Annotation information for junctions that passed filtering criteria.
     
     """
-    sj_outD = make_sj_out_dict(fnL, define_sample_name=None)
-    sj_outP,annotDF = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
-                                        statsN=None)
-    extDF = read_external_annotation(fn)
-    # TODO: make sure that I'm getting the right output from this function below
+    sj_outD = make_sj_out_dict(fns, define_sample_name=define_sample_name)
+    sj_outP, annotDF = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
+                                        statsfile=statsfile)
+
+    # I'll read in the statsfile and hold that information so I can combine into
+    # a final statsfile.
+    f = open(statsfile, 'r')
+    lines = f.readlines()
+    f.close()
+    
+    extDF = read_external_annotation(external_db)
     countsDF, annotDF = filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, 
-                                                   statsN=None)
-    #TODO: make return situation, maybe print to file is a file is provided via
-    # command line or whatever
+                                                   statsfile=statsfile)
+
+    f = open(statsfile, 'r')
+    lines2 = f.readlines()
+    f.close()
+
+    f = open(statsfile, 'w')
+    f.write(lines + lines2)
+    f.close()
+
+    return countsDF, annotDF
