@@ -1,6 +1,3 @@
-import argparse
-import pdb
-
 import pandas as pd
 
 # Column labels for SJ.out.tab.
@@ -444,59 +441,3 @@ def combine_sj_out(fnL, total_jxn_cov_cutoff=20, define_sample_name=None,
                                                    statsN=None)
     #TODO: make return situation, maybe print to file is a file is provided via
     # command line or whatever
-
-def main():
-    ### magic variables ###
-    total_jxn_cov_cutoff= 20
-    jxnN        = '/raid/databases/hg19/gene_annotations/gencode_v14/splice_junctions.tsv'
-    jxn_countN          = 'junction_counts.tsv'
-    jxn_annotN          = 'junction_info.tsv'
-    gencode_infoN       = 'uniq_gencode_info.tsv'
-    statsN              = 'combined_sj_out_stats.txt'
-
-    ### gather arguments from command line ###
-    parser = argparse.ArgumentParser(
-        description='''This script takes a list sj_out files fom STAR alignments
-        and combines them into a single python data structure after some
-        filtering.''', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('sj_out_files', nargs='+', help='STAR sj_out files.')
-    parser.add_argument('-c', metavar='coverage_cutoff', type=int,
-                        default=total_jxn_cov_cutoff, help='''If a junction is
-                        covered by less than this many unique reads summed over
-                        all samples, it will not be output in the counts
-                        file.''')
-    parser.add_argument('-g', metavar='gencode_junctions', default=jxnN,
-                        help='''Tsv file describing gencode splice 
-                        junctions.''')
-    parser.add_argument('-jc', metavar='jxn_counts', default=jxn_countN,
-                        help='''File name for splice junction 
-                        counts.''')
-    parser.add_argument('-jg', metavar='jxn_genes', default=jxn_annotN,
-                        help='''File name for splice junction annotations. This
-                        file is especially useful for novel junctions and adds
-                        strand information.''')
-    parser.add_argument('-gi', metavar='gencode_info', default=gencode_infoN,
-                        help='''Output file for gencode splice junction info
-                        filtered to include only unique junctions. Also includes
-                        several extra columns''')
-    parser.add_argument('-f', metavar='stats_file', default=statsN, help='''File
-                        to print some statistics to.''')
-    parser.add_argument('--debug', action='store_true', help='''Enable python
-                        debugger.''')
-    
-    args = parser.parse_args()
-   
-    temp_fnL            = args.sj_out_files
-    total_jxn_cov_cutoff= args.c
-    jxnN        = args.g
-    jxn_countN          = args.jc
-    jxn_annotN          = args.jg
-    gencode_infoN       = args.gi
-    statsN              = args.f
-    debug               = args.debug
-
-    ### start main ###
-    combine_star_sj_out(fnL,total_jxn_cov_cutoff,jxnN,jxn_countN,jxn_annotN,gencode_infoN,statsN)
-
-if __name__ == '__main__':
-    main()
