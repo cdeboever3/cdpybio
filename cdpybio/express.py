@@ -4,8 +4,8 @@ import pandas as pd
 
 def combine_express_output(fnL,
                            column='eff_counts',
-                           namesL=None,
-                           tgN=None,
+                           names=None,
+                           tg=None,
                            define_sample_name=None,
                            debug=False):
     """
@@ -20,11 +20,11 @@ def combine_express_output(fnL,
     column : string
         Column name of eXpress output to combine.
 
-    namesL : list of strings
+    names : list of strings
         Names to use for columns of output files. Overrides define_sample_name 
         if provided.
 
-    tgN : string
+    tg : string
         File with transcript-to-gene mapping. Transcripts should be in first
         column and genes in second column. 
 
@@ -38,15 +38,15 @@ def combine_express_output(fnL,
         Passing True will trigger any debugging statements.
 
     """
-    if namesL is not None:
-        assert len(namesL) == len(fnL)
+    if names is not None:
+        assert len(names) == len(fnL)
     if define_sample_name is None:
         define_sample_name = lambda x: x
     
     transcriptL = []
     for i,fn in enumerate(fnL):
-        if namesL is not None:
-            bn = namesL[i]
+        if names is not None:
+            bn = names[i]
         else:
             bn = define_sample_name(fn)
         tDF = pd.read_table(fn, index_col=1, header=0)
@@ -61,8 +61,8 @@ def combine_express_output(fnL,
                          same reference was used for all output files.\n''')
         sys.exit(1)
 
-    if tgN is not None:
-        tgDF = pd.read_table(tgN,
+    if tg is not None:
+        tgDF = pd.read_table(tg,
                              index_col=0,
                              header=None,
                              names=['gene_id'])
