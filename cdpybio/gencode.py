@@ -41,7 +41,7 @@ def make_splice_junction_df(fn,type='gene'):
     # backwards.  So if your gtf is end-inclusive, you want the default
     # (end_included=False).  With this, one will NOT be subtracted from the end
     # coordinate.
-    gffI = it.islice(HTSeq.GFF_Reader(fn),None)    
+    gffI = it.islice(HTSeq.GFF_Reader(fn), None)    
     juncL = []
     eof = False
     entry = gffI.next()
@@ -94,11 +94,10 @@ def make_splice_junction_df(fn,type='gene'):
                 count += 1
             except StopIteration:
                 eof = True
-        # if count > last_count*100000:
-        #     print >>sys.stderr, '{0}\r'.format(count)
             last_count += 1
     header = ['gene', 'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end',
               'donor', 'acceptor', 'intron']
     juncA = np.array(juncL)
-    return pd.DataFrame(
-        juncA[:,1:],index=juncA[:,0],columns=header).drop_duplicates() 
+    return pd.DataFrame(juncA[:,1:],
+                        index=juncA[:,0],
+                        columns=header).drop_duplicates() 

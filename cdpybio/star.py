@@ -203,23 +203,15 @@ def read_external_annotation(fn, statsfile=None):
         DataFrame indexed by splice junction
     
     """
-    extDF = pd.read_table(fn, header=0)
+    extDF = pd.read_table(fn, index_col=0, header=0)
     
-    extDF['junction_no_strand'] = extDF.junction.apply(
-        lambda x: juncRE.match(x).group().strip(':'))
-
     # In rare cases, a splice junction might be used by more than one gene. For
     # my purposes, these cases are confounding, so I will remove all such splice
     # junctions. 
-    junctions_to_keepSE = extDF.junction_no_strand.value_counts() == 1
-    # Drop duplicate junctions, but this leaves one copy of the duplicate
-    # junction, so we will reindex and keep only the junctions we want.
-    extDF = extDF.drop_duplicates(cols='junction_no_strand')
-    extDF.index = extDF.junction_no_strand
-    extDF = extDF.ix[junctions_to_keepSE]
-    # Reindex with strand info.
-    extDF.index = extDF.junction
-    extDF = extDF.drop('junction', axis=1)
+    intron_count = extDF.intron.value_counts()
+    extDF['intron_count'] = extDF.intron.apply(lambda x: intron_count.ix[x])
+    extDF = extDF[extDF.intron_count == 1]
+    extDF = extDF.drop('intron_count', axis=1)
 
     if statsfile:
         f = open(statsfile, 'w')
