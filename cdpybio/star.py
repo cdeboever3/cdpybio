@@ -1,3 +1,5 @@
+import copy
+
 import pandas as pd
 
 # Column labels for SJ.out.tab.
@@ -144,6 +146,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
                   [ sj_outD[k].index for k in sj_outD.keys() ])
 
     jxn_keepS = set()
+    sj_outD = copy.deepcopy(sj_outD)
     for j in jxnS:
         if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
                  if j in sj_outD[k].index ]) >= total_jxn_cov_cutoff:
@@ -151,6 +154,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
 
     for k in sj_outD.keys():
         sj_outD[k] = sj_outD[k].ix[jxn_keepS]
+    # TODO: If a particular sample did not have a junction, it will be added
+    # here with missing values. I may want to think about whether I should set
+    # those values right now or not.
 
     sj_outP = pd.Panel(sj_outD)
     for col in ['unique_junction_reads', 'multimap_junction_reads',
@@ -181,7 +187,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
   
         statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
         statsF.close()
-    return sj_outP,annotDF
+    return sj_outP, annotDF
 
 def read_external_annotation(fn, statsfile=None):
     """Read file with junctions from some database. This does not have to be the
