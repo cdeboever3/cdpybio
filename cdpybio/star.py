@@ -8,8 +8,13 @@ COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                 'unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang')
 # Subset of columns from SJ.out.tab.
+COUNT_COLS = ('unique_junction_reads', 'multimap_junction_reads',
+              'max_overhang')
+# Subset of columns from SJ.out.tab.
 ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
                    'annotated')
+# TODO: add strand to above list. I don't use the STAR strand because I didn't
+# understand it (maybe buggy?) but I'm sure it's fixed in recent versions.
 
 def _sj_out_junction(row):
     return '{}:{}-{}'.format(row['chrom'], row['first_bp_intron'],
@@ -129,12 +134,13 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     Returns
     -------
     sj_outP : pandas.Panel
-        Panel where each dataframe(?) corresponds to an sj_out file filtered to
-        remove low coverage junctions.
+        Panel where each dataframe corresponds to an sj_out file filtered to
+        remove low coverage junctions. Each dataframe has COUNT_COLS =
+        ('unique_junction_reads', 'multimap_junction_reads', 'max_overhang')
 
     annotDF : pandas.DataFrame
-        Dataframe with values ANNOTATION_COLS = ['chrom', 'first_bp_intron', 
-        'last_bp_intron', 'intron_motif', 'annotated'] that are otherwise
+        Dataframe with values ANNOTATION_COLS = ('chrom', 'first_bp_intron', 
+        'last_bp_intron', 'intron_motif', 'annotated') that are otherwise
         duplicated in the panel.
     
     """
@@ -176,6 +182,11 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     # dataframe in the panel, so we'll make a single dataframe holding that
     # information.
     annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
+    annotDF['first_bp_intron'] = annotDF['first_bp_intron'].astype(int)
+    annotDF['last_bp_intron'] = annotDF['last_bp_intron'].astype(int)
+    annotDF['annotated'] = annotDF['last_bp_intron'].astype(bool)
+
+    sj_outP = sj_outP.ix[:,:,COUNT_COLS]
 
     if statsfile:
         statsF = open(statsfile,'w')
