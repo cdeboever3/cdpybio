@@ -58,25 +58,15 @@ class TestMakeSJOutDict:
 class TestMakeSJOutPanel:
     def test_make_sj_out_panel(self):
         ind = [u'chr1:5-20', u'chr1:5-25', u'chr1:10-20']
-        col = [u'unique_junction_reads', u'multimap_junction_reads',
-               u'max_overhang']
-        df = pd.DataFrame(
-            array([[20.0, 1.0, 14.0],
-                   [10.0, 1.0, 7.0],
-                   [20.0, 1.0, 7.0]], dtype=object),
-            index=ind,
-            columns=col
-        )
-        df2 = pd.DataFrame(
-            array([[0.0, 0.0, 0.0],
-                   [10.0, 1.0, 7.0],
-                   [20.0, 1.0, 7.0]], dtype=object),
-            index=ind,
-            columns=col
-        )
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+                                       'SJ.out.tab.nonew_b'])
+        df = d['SJ.out.tab.nonew_a'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = d['SJ.out.tab.nonew_b'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = df2.fillna(0)
 
         p = pd.Panel({'SJ.out.tab.nonew_a':df,
                       'SJ.out.tab.nonew_b':df2})
+        p = p.astype(int)
         a = pd.DataFrame([['chr1', 5, 20, 'GT/AG', True],
                           ['chr1', 5, 25, 'CT/AC', True],
                           ['chr1', 10, 20, 'CT/AC', True]],
@@ -84,9 +74,8 @@ class TestMakeSJOutPanel:
                          columns=[u'chrom', u'first_bp_intron',
                                   u'last_bp_intron', u'intron_motif',
                                   u'annotated'])
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
-                                       'SJ.out.tab.nonew_b'])
         p2, a2 = cpb.star.make_sj_out_panel(d)
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
+    #def test_

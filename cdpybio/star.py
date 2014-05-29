@@ -1,4 +1,5 @@
 import copy
+import pdb
 
 import pandas as pd
 
@@ -186,7 +187,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     annotDF['last_bp_intron'] = annotDF['last_bp_intron'].astype(int)
     annotDF['annotated'] = annotDF['last_bp_intron'].astype(bool)
 
-    sj_outP = sj_outP.ix[:,:,COUNT_COLS]
+    sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
 
     if statsfile:
         statsF = open(statsfile,'w')
