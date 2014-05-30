@@ -84,7 +84,7 @@ def make_splice_junction_df(fn,type='gene'):
                     chrend = '{}:{}'.format(chrom, end)
                     donor = _gencode_donor(chrom, start, end, strand)
                     acceptor = _gencode_acceptor(chrom, start, end, strand)
-                    intron = '{}:{}:{}'.format(chrom, start, end)
+                    intron = '{}:{}-{}'.format(chrom, start, end)
                     juncL.append([jxn, gene, chrom, str(start), str(end), 
                                   strand, chrstart, chrend, donor, acceptor,
                                   intron])

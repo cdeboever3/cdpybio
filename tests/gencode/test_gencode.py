@@ -5,11 +5,6 @@ import pytest
 
 import cdpybio as cpb
 
-# TODO: Things I need: A small fake annotation (tsv). A few SJout files. 
-# TODO: Things to test: Filtering. Make sure junctions not observed are given
-# zero values. Inclusion of three types of novel junctions (donor, acceptor,
-# combination). Statsfiles?
-
 class TestCombineSJOut:
     def test_normal(self):
         df = cpb.express.combine_express_output(FL)[0]

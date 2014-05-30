@@ -161,9 +161,6 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
 
     for k in sj_outD.keys():
         sj_outD[k] = sj_outD[k].ix[jxn_keepS]
-    # TODO: If a particular sample did not have a junction, it will be added
-    # here with missing values. I may want to think about whether I should set
-    # those values right now or not.
 
     sj_outP = pd.Panel(sj_outD)
     for col in ['unique_junction_reads', 'multimap_junction_reads',
@@ -279,13 +276,14 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     juncRE = re.compile('(.*):(\d*)-(\d*):') 
     
     # Add column showing whether junction is in external annotation.
+    annotDF = copy.deepcopy(annotDF)
     annotDF['ext_annotated'] = False
-    annotDF.ix[set(annotDF.index) & set(extDF.junction_no_strand),
+    annotDF.ix[set(annotDF.index) & set(extDF.intron),
                'ext_annotated'] = True
 
     # Add strand information to annotation of STAR junctions that are in
     # external database.
-    strandSE = pd.Series(extDF.strand.values,index=extDF.junction_no_strand)
+    strandSE = pd.Series(extDF.strand.values,index=extDF.intron)
     strandSE = strandSE[set(strandSE.index) & set(annotDF.index)]
     annotDF['strand'] = '*'
     annotDF.ix[strandSE.index,'strand'] = strandSE.values
@@ -305,22 +303,25 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     junctions_to_removeSE = annotDF[annotDF.ext_annotated == False].apply(
         lambda x: (x['chr:start'] in ext_startS) + 
         (x['chr:end'] in ext_endS) == 0,axis=1)
-    annotDF = annotDF.drop(junctions_to_removeSE[junctions_to_removeSE].index)
+    if junctions_to_removeSE.shape[0] > 0:
+        annotDF = annotDF.drop(junctions_to_removeSE[junctions_to_removeSE].index)
 
     # Add column indicating which gene the junctions belong to for annotated
     # jxn's.
-    geneSE = pd.Series(dict(zip(extDF.junction_no_strand.values,extDF.gene)))
+    geneSE = pd.Series(dict(zip(extDF.intron.values,extDF.gene)))
     annotDF['gene_id'] = ''
     annotDF['gene_id'] = geneSE[annotDF.index]
 
     # Now we'll figure out the genes for the junctions that aren't in our
     # database. We can associate each start and end with a gene and use this.
-    start_geneSE = pd.Series(
-        dict(zip(extDF.apply(lambda x: '{}:{}'.format(
-            x['chrom'],x['first_bp_intron']),axis=1),extDF.gene)))
-    end_geneSE = pd.Series(
-        dict(zip(extDF.apply(lambda x: '{}:{}'.format(
-            x['chrom'],x['last_bp_intron']),axis=1),extDF.gene)))
+    start_geneSE = pd.Series(dict(zip(extDF['chr:start'], extDF.gene)))
+    end_geneSE = pd.Series(dict(zip(extDF['chr:end'], extDF.gene)))
+    # start_geneSE = pd.Series(
+    #     dict(zip(extDF.apply(lambda x: '{}:{}'.format(
+    #         x['chrom'],x['first_bp_intron']),axis=1),extDF.gene)))
+    # end_geneSE = pd.Series(
+    #     dict(zip(extDF.apply(lambda x: '{}:{}'.format(
+    #         x['chrom'],x['last_bp_intron']),axis=1),extDF.gene)))
 
     for ind in annotDF[annotDF.ext_annotated == False].index:
         cur_start = annotDF.ix[ind,'chr:start'] 
@@ -344,8 +345,8 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     annotDF['acceptor'] = annotDF.apply(lambda x: _sj_out_acceptor(x),axis=1)
 
     # And whether the donor or acceptor is in the external database or not.
-    extDF['donor'] = extDF.apply(lambda x: _sj_out_donor(x),axis=1)
-    extDF['acceptor'] = extDF.apply(lambda x: _sj_out_acceptor (x),axis=1)
+    # extDF['donor'] = extDF.apply(lambda x: _sj_out_donor(x),axis=1)
+    # extDF['acceptor'] = extDF.apply(lambda x: _sj_out_acceptor (x),axis=1)
     ext_donorS = set(extDF.donor)
     ext_acceptorS = set(extDF.acceptor)
     annotDF['novel_donor'] = False
@@ -362,7 +363,7 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
 
     # Make file with counts for the junctions we are interested in.
     L = [ juncRE.match(x).group().strip(':') for x in annotDF.index ]
-    countDF = sj_out_filteredP.ix[:, L, 'unique_junction_reads']
+    countDF = sj_outP.ix[:, L, 'unique_junction_reads']
     countDF.index = annotDF.index
 
     if statsfile:

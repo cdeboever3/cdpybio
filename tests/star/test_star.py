@@ -7,24 +7,24 @@ import pytest
 
 import cdpybio as cpb
 
+# TODO: I might want to include some more tests. I haven't tested whether the
+# stats in the statsfiles are correct. I might want to check to make sure the
+# results aren't sensitive to strand. I could also test the define_sample_name
+# functionality.
+
 EXTDF = pd.DataFrame([['gene1', 'chr1', 10, 20, '-', 'chr1:10', 'chr1:20',
-                       'chr1:20:-', 'chr1:10:-', 'chr1:10:20'],
+                       'chr1:20:-', 'chr1:10:-', 'chr1:10-20'],
                       ['gene1', 'chr1', 5, 25, '-', 'chr1:5', 'chr1:25',
-                       'chr1:25:-', 'chr1:5:-', 'chr1:5:25'],
+                       'chr1:25:-', 'chr1:5:-', 'chr1:5-25'],
                       ['gene1', 'chr1', 2, 20, '-', 'chr1:2', 'chr1:20',
-                       'chr1:20:-', 'chr1:2:-', 'chr1:2:20'],
+                       'chr1:20:-', 'chr1:2:-', 'chr1:2-20'],
                       ['gene1', 'chr1', 5, 20, '-', 'chr1:5', 'chr1:20',
-                       'chr1:20:-', 'chr1:5:-', 'chr1:5:20']],
+                       'chr1:20:-', 'chr1:5:-', 'chr1:5-20']],
                      index=['chr1:10-20:-', 'chr1:5-25:-', 'chr1:2-20:-',
                             'chr1:5-20:-'],
                      columns=['gene', 'chrom', 'start', 'end', 'strand',
                               'chr:start', 'chr:end', 'donor', 'acceptor',
                               'intron'])
-
-# TODO: Things to test: Filtering. Make sure junctions not observed are given
-# zero values. Inclusion of three types of novel junctions (donor, acceptor,
-# combination). Statsfiles? Make sure filtering works correctly. Everything
-# works for both strands? Test define_sample_name?
 
 class TestMisc:
     def test_read_ext(self):
@@ -107,8 +107,29 @@ class TestMakeSJOutPanel:
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
+class TestFilterJxnsDonorAcceptor:
+    def test_filter_jxns_donor_acceptor(self):
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+                                       'SJ.out.tab.nonew_b'])
+        p, a = cpb.star.make_sj_out_panel(d)
+        ext = cpb.star.read_external_annotation('ext.tsv')
+        c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        a = pd.DataFrame(
+            [['chr1', 5, 20, 'GT/AG', True, True, '-', 'chr1:5', 'chr1:20', 
+              'gene1', 'chr1:20:-', 'chr1:5:-', False, False], 
+             ['chr1', 5, 25, 'CT/AC', True, True, '-', 'chr1:5', 'chr1:25', 
+              'gene1', 'chr1:25:-', 'chr1:5:-', False, False], 
+             ['chr1', 10, 20, 'CT/AC', True, True, '-', 'chr1:10', 
+              'chr1:20', 'gene1', 'chr1:20:-', 'chr1:10:-', False, False]],
+            index=[u'chr1:5-20:-', u'chr1:5-25:-', u'chr1:10-20:-'],
+            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
+                     u'intron_motif', u'annotated', u'ext_annotated', u'strand',
+                     u'chr:start', u'chr:end', u'gene_id', u'donor',
+                     u'acceptor', u'novel_donor', u'novel_acceptor'])
+        c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
+                         index=[u'chr1:5-20:-', u'chr1:5-25:-',
+                                u'chr1:10-20:-'],
+                         columns=[u'SJ.out.tab.nonew_a', u'SJ.out.tab.nonew_b'])
 
-
-
-
-
+        assert_frame_equal(a, a2)
+        assert_frame_equal(c, c2)
