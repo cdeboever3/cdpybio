@@ -321,12 +321,6 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     # database. We can associate each start and end with a gene and use this.
     start_geneSE = pd.Series(dict(zip(extDF['chr:start'], extDF.gene)))
     end_geneSE = pd.Series(dict(zip(extDF['chr:end'], extDF.gene)))
-    # start_geneSE = pd.Series(
-    #     dict(zip(extDF.apply(lambda x: '{}:{}'.format(
-    #         x['chrom'],x['first_bp_intron']),axis=1),extDF.gene)))
-    # end_geneSE = pd.Series(
-    #     dict(zip(extDF.apply(lambda x: '{}:{}'.format(
-    #         x['chrom'],x['last_bp_intron']),axis=1),extDF.gene)))
 
     for ind in annotDF[annotDF.ext_annotated == False].index:
         cur_start = annotDF.ix[ind,'chr:start'] 
