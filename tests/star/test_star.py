@@ -78,4 +78,37 @@ class TestMakeSJOutPanel:
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
-    #def test_
+    def test_new_junctions(self):
+        ind = [u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
+               u'chr1:3-25', u'chr1:10-20']
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+                                       'SJ.out.tab.new'])
+        df = d['SJ.out.tab.nonew_a'].ix[ind, cpb.star.COUNT_COLS]
+        df = df.fillna(0)
+        df2 = d['SJ.out.tab.new'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = df2.fillna(0)
+
+        p = pd.Panel({'SJ.out.tab.nonew_a':df,
+                      'SJ.out.tab.new':df2})
+        p = p.astype(int)
+        a = pd.DataFrame(
+            [['chr1', 2, 25, 'GT/AG', True],
+             ['chr1', 30, 40, 'CT/AC', True],
+             ['chr1', 5, 30, 'GT/AG', True],
+             ['chr1', 5, 20, 'GT/AG', True],
+             ['chr1', 3, 25, 'CT/AC', True],
+             ['chr1', 10, 20, 'CT/AC', True]],
+            index=[u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
+                   u'chr1:3-25', u'chr1:10-20'],
+            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
+                     u'intron_motif', u'annotated']
+        )
+        p2, a2 = cpb.star.make_sj_out_panel(d)
+        assert_frame_equal(a, a2)
+        assert_panel_equal(p, p2)
+
+
+
+
+
+
