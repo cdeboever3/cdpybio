@@ -286,8 +286,8 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     annotDF.ix[set(annotDF.index) & set(extDF.intron),
                'ext_annotated'] = True
 
-    # Add strand information to annotation of STAR junctions that are in
-    # external database.
+    # Replace strand information from STAR with strand information from external
+    # database.
     strandSE = pd.Series(extDF.strand.values,index=extDF.intron)
     strandSE = strandSE[set(strandSE.index) & set(annotDF.index)]
     annotDF['strand'] = '*'

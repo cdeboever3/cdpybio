@@ -13,13 +13,13 @@ import cdpybio as cpb
 # functionality.
 
 EXTDF = pd.DataFrame([['gene1', 'chr1', 10, 20, '+', 'chr1:10', 'chr1:20',
-                       'chr1:20:+', 'chr1:10:+', 'chr1:10-20'],
+                       'chr1:10:+', 'chr1:20:+', 'chr1:10-20'],
                       ['gene1', 'chr1', 5, 25, '+', 'chr1:5', 'chr1:25',
-                       'chr1:25:+', 'chr1:5:+', 'chr1:5-25'],
+                       'chr1:5:+', 'chr1:25:+', 'chr1:5-25'],
                       ['gene1', 'chr1', 2, 20, '+', 'chr1:2', 'chr1:20',
-                       'chr1:20:+', 'chr1:2:+', 'chr1:2-20'],
+                       'chr1:2:+', 'chr1:20:+', 'chr1:2-20'],
                       ['gene1', 'chr1', 5, 20, '+', 'chr1:5', 'chr1:20',
-                       'chr1:20:+', 'chr1:5:+', 'chr1:5-20']],
+                       'chr1:5:+', 'chr1:20:+', 'chr1:5-20']],
                      index=['chr1:10-20:+', 'chr1:5-25:+', 'chr1:2-20:+',
                             'chr1:5-20:+'],
                      columns=['gene', 'chrom', 'start', 'end', 'strand',
@@ -115,17 +115,18 @@ class TestFilterJxnsDonorAcceptor:
         ext = cpb.star.read_external_annotation('ext.tsv')
         c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
-            [['chr1', 5, 20, 'GT/AG', True, True, '+', 'chr1:5', 'chr1:20', 
-              'gene1', 'chr1:20:+', 'chr1:5:+', False, False], 
-             ['chr1', 5, 25, 'CT/AC', True, True, '+', 'chr1:5', 'chr1:25', 
-              'gene1', 'chr1:25:+', 'chr1:5:+', False, False], 
-             ['chr1', 10, 20, 'CT/AC', True, True, '+', 'chr1:10', 
-              'chr1:20', 'gene1', 'chr1:20:+', 'chr1:10:+', False, False]],
+            [['chr1', 5, 20, '+', 'GT/AG', True, True, 'chr1:5', 
+              'chr1:20', 'gene1', 'chr1:5:+', 'chr1:20:+', False, False], 
+             ['chr1', 5, 25, '+', 'CT/AC', True, True, 'chr1:5', 
+              'chr1:25', 'gene1', 'chr1:5:+', 'chr1:25:+', False, False], 
+             ['chr1', 10, 20, '+', 'CT/AC', True, True, 'chr1:10', 
+              'chr1:20', 'gene1', 'chr1:10:+', 'chr1:20:+', False, False]],
             index=[u'chr1:5-20:+', u'chr1:5-25:+', u'chr1:10-20:+'],
-            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
-                     u'intron_motif', u'annotated', u'ext_annotated', u'strand',
-                     u'chr:start', u'chr:end', u'gene_id', u'donor',
-                     u'acceptor', u'novel_donor', u'novel_acceptor'])
+            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron', 
+                     u'strand', u'intron_motif', u'annotated', 
+                     u'ext_annotated', u'chr:start', u'chr:end', 
+                     u'gene_id', u'donor', u'acceptor', u'novel_donor', 
+                     u'novel_acceptor'])
         c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
                          index=[u'chr1:5-20:+', u'chr1:5-25:+',
                                 u'chr1:10-20:+'],
