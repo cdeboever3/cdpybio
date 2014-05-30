@@ -12,8 +12,8 @@ COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
 COUNT_COLS = ('unique_junction_reads', 'multimap_junction_reads',
               'max_overhang')
 # Subset of columns from SJ.out.tab.
-ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
-                   'annotated')
+ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
+                   'intron_motif', 'annotated')
 # TODO: add strand to above list. I don't use the STAR strand because I didn't
 # understand it (maybe buggy?) but I'm sure it's fixed in recent versions.
 
@@ -75,6 +75,11 @@ def read_sj_out_tab(filename):
     sj = pd.read_table(filename, header=None, names=COLUMN_NAMES)
     sj.intron_motif = sj.intron_motif.map(int_to_intron_motif)
     sj.annotated = sj.annotated.map(bool)
+    sj.strand.astype('object')
+    sj.strand = sj.strand.apply(lambda x: ['unk','+','-'][x])
+    # See https://groups.google.com/d/msg/rna-star/B0Y4oH8ZSOY/NO4OJbbUU4cJ for
+    # definition of strand in SJout files.
+
     return sj
 
 def make_sj_out_dict(fns, define_sample_name=None):

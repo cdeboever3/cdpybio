@@ -12,16 +12,16 @@ import cdpybio as cpb
 # results aren't sensitive to strand. I could also test the define_sample_name
 # functionality.
 
-EXTDF = pd.DataFrame([['gene1', 'chr1', 10, 20, '-', 'chr1:10', 'chr1:20',
-                       'chr1:20:-', 'chr1:10:-', 'chr1:10-20'],
-                      ['gene1', 'chr1', 5, 25, '-', 'chr1:5', 'chr1:25',
-                       'chr1:25:-', 'chr1:5:-', 'chr1:5-25'],
-                      ['gene1', 'chr1', 2, 20, '-', 'chr1:2', 'chr1:20',
-                       'chr1:20:-', 'chr1:2:-', 'chr1:2-20'],
-                      ['gene1', 'chr1', 5, 20, '-', 'chr1:5', 'chr1:20',
-                       'chr1:20:-', 'chr1:5:-', 'chr1:5-20']],
-                     index=['chr1:10-20:-', 'chr1:5-25:-', 'chr1:2-20:-',
-                            'chr1:5-20:-'],
+EXTDF = pd.DataFrame([['gene1', 'chr1', 10, 20, '+', 'chr1:10', 'chr1:20',
+                       'chr1:20:+', 'chr1:10:+', 'chr1:10-20'],
+                      ['gene1', 'chr1', 5, 25, '+', 'chr1:5', 'chr1:25',
+                       'chr1:25:+', 'chr1:5:+', 'chr1:5-25'],
+                      ['gene1', 'chr1', 2, 20, '+', 'chr1:2', 'chr1:20',
+                       'chr1:20:+', 'chr1:2:+', 'chr1:2-20'],
+                      ['gene1', 'chr1', 5, 20, '+', 'chr1:5', 'chr1:20',
+                       'chr1:20:+', 'chr1:5:+', 'chr1:5-20']],
+                     index=['chr1:10-20:+', 'chr1:5-25:+', 'chr1:2-20:+',
+                            'chr1:5-20:+'],
                      columns=['gene', 'chrom', 'start', 'end', 'strand',
                               'chr:start', 'chr:end', 'donor', 'acceptor',
                               'intron'])
@@ -32,10 +32,10 @@ class TestMisc:
         assert_frame_equal(df, EXTDF)
 
     def test_read_sj_out(self):
-        df = pd.DataFrame([['chr1', 2, 20, 1, 'GT/AG', True, 5, 1, 10],
-                           ['chr1', 5, 20, 1, 'GT/AG', True, 20, 1, 14],
-                           ['chr1', 5, 25, 1, 'CT/AC', True, 10, 1, 7],
-                           ['chr1', 10, 20, 1, 'CT/AC', True, 20, 1, 7]],
+        df = pd.DataFrame([['chr1', 2, 20, '+', 'GT/AG', True, 5, 1, 10],
+                           ['chr1', 5, 20, '+', 'GT/AG', True, 20, 1, 14],
+                           ['chr1', 5, 25, '+', 'CT/AC', True, 10, 1, 7],
+                           ['chr1', 10, 20, '+', 'CT/AC', True, 20, 1, 7]],
                           columns=[u'chrom', u'first_bp_intron',
                                    u'last_bp_intron', u'strand',
                                    u'intron_motif', u'annotated',
@@ -67,12 +67,12 @@ class TestMakeSJOutPanel:
         p = pd.Panel({'SJ.out.tab.nonew_a':df,
                       'SJ.out.tab.nonew_b':df2})
         p = p.astype(int)
-        a = pd.DataFrame([['chr1', 5, 20, 'GT/AG', True],
-                          ['chr1', 5, 25, 'CT/AC', True],
-                          ['chr1', 10, 20, 'CT/AC', True]],
+        a = pd.DataFrame([['chr1', 5, 20, '+', 'GT/AG', True],
+                          ['chr1', 5, 25, '+', 'CT/AC', True],
+                          ['chr1', 10, 20, '+', 'CT/AC', True]],
                          index=[u'chr1:5-20', u'chr1:5-25', u'chr1:10-20'],
                          columns=[u'chrom', u'first_bp_intron',
-                                  u'last_bp_intron', u'intron_motif',
+                                  u'last_bp_intron', u'strand', u'intron_motif',
                                   u'annotated'])
         p2, a2 = cpb.star.make_sj_out_panel(d)
         assert_frame_equal(a, a2)
@@ -92,15 +92,15 @@ class TestMakeSJOutPanel:
                       'SJ.out.tab.new':df2})
         p = p.astype(int)
         a = pd.DataFrame(
-            [['chr1', 2, 25, 'GT/AG', True],
-             ['chr1', 30, 40, 'CT/AC', True],
-             ['chr1', 5, 30, 'GT/AG', True],
-             ['chr1', 5, 20, 'GT/AG', True],
-             ['chr1', 3, 25, 'CT/AC', True],
-             ['chr1', 10, 20, 'CT/AC', True]],
+            [['chr1', 2, 25, '+', 'GT/AG', True],
+             ['chr1', 30, 40, '+', 'CT/AC', True],
+             ['chr1', 5, 30, '+', 'GT/AG', True],
+             ['chr1', 5, 20, '+', 'GT/AG', True],
+             ['chr1', 3, 25, '+', 'CT/AC', True],
+             ['chr1', 10, 20, '+', 'CT/AC', True]],
             index=[u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
                    u'chr1:3-25', u'chr1:10-20'],
-            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
+            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron', u'strand',
                      u'intron_motif', u'annotated']
         )
         p2, a2 = cpb.star.make_sj_out_panel(d)
@@ -115,20 +115,20 @@ class TestFilterJxnsDonorAcceptor:
         ext = cpb.star.read_external_annotation('ext.tsv')
         c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
-            [['chr1', 5, 20, 'GT/AG', True, True, '-', 'chr1:5', 'chr1:20', 
-              'gene1', 'chr1:20:-', 'chr1:5:-', False, False], 
-             ['chr1', 5, 25, 'CT/AC', True, True, '-', 'chr1:5', 'chr1:25', 
-              'gene1', 'chr1:25:-', 'chr1:5:-', False, False], 
-             ['chr1', 10, 20, 'CT/AC', True, True, '-', 'chr1:10', 
-              'chr1:20', 'gene1', 'chr1:20:-', 'chr1:10:-', False, False]],
-            index=[u'chr1:5-20:-', u'chr1:5-25:-', u'chr1:10-20:-'],
+            [['chr1', 5, 20, 'GT/AG', True, True, '+', 'chr1:5', 'chr1:20', 
+              'gene1', 'chr1:20:+', 'chr1:5:+', False, False], 
+             ['chr1', 5, 25, 'CT/AC', True, True, '+', 'chr1:5', 'chr1:25', 
+              'gene1', 'chr1:25:+', 'chr1:5:+', False, False], 
+             ['chr1', 10, 20, 'CT/AC', True, True, '+', 'chr1:10', 
+              'chr1:20', 'gene1', 'chr1:20:+', 'chr1:10:+', False, False]],
+            index=[u'chr1:5-20:+', u'chr1:5-25:+', u'chr1:10-20:+'],
             columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
                      u'intron_motif', u'annotated', u'ext_annotated', u'strand',
                      u'chr:start', u'chr:end', u'gene_id', u'donor',
                      u'acceptor', u'novel_donor', u'novel_acceptor'])
         c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
-                         index=[u'chr1:5-20:-', u'chr1:5-25:-',
-                                u'chr1:10-20:-'],
+                         index=[u'chr1:5-20:+', u'chr1:5-25:+',
+                                u'chr1:10-20:+'],
                          columns=[u'SJ.out.tab.nonew_a', u'SJ.out.tab.nonew_b'])
 
         assert_frame_equal(a, a2)
