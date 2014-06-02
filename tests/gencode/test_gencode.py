@@ -1,13 +1,24 @@
 from copy import deepcopy
 import pandas as pd
 from pandas.util.testing import assert_frame_equal
+from pandas.util.testing import assert_series_equal
 import pytest
 
 import cdpybio as cpb
 
-# class TestMakeTranscriptGeneSe:
-#     2
-# 
+class TestMakeTranscriptGeneSe:
+    def test_two_genes(self):
+        transcripts = [u'ENST00000456328.2', u'ENST00000515242.2',
+                       u'ENST00000518655.2', u'ENST00000450305.2',
+                       u'ENST00000466430.1', u'ENST00000477740.1',
+                       u'ENST00000471248.1', u'ENST00000453576.2']
+        genes = ['ENSG00000223972.4', 'ENSG00000223972.4', 'ENSG00000223972.4',
+                 'ENSG00000223972.4', 'ENSG00000238009.2', 'ENSG00000238009.2',
+                 'ENSG00000238009.2', 'ENSG00000238009.2']
+        se = pd.Series(genes, index=transcripts)
+        se2 = cpb.gencode.make_transcript_gene_se('annot.gtf')
+        assert_series_equal(se, se2)
+
 # class TestMakeGeneInfoDf:
 #     2
 # 
