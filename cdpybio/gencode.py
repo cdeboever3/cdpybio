@@ -100,7 +100,7 @@ def make_splice_junction_df(fn,type='gene'):
     -------
     df : pandas.DataFrame
         Dataframe of splice junctions with the following columns 'gene',
-        'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end', 'donor',
+        'chrom', 'start', 'end', 'strand', 'chrom:start', 'chrom:end', 'donor',
         'acceptor', 'intron'
 
     """
@@ -167,9 +167,11 @@ def make_splice_junction_df(fn,type='gene'):
             except StopIteration:
                 eof = True
             last_count += 1
-    header = ['gene', 'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end',
-              'donor', 'acceptor', 'intron']
+    header = ['gene', 'chrom', 'start', 'end', 'strand', 'chrom:start',
+              'chrom:end', 'donor', 'acceptor', 'intron']
     juncA = np.array(juncL)
-    return pd.DataFrame(juncA[:,1:],
-                        index=juncA[:,0],
-                        columns=header).drop_duplicates() 
+    df = pd.DataFrame(juncA[:,1:], index=juncA[:,0], 
+                      columns=header).drop_duplicates() 
+    df['start'] = df.start.astype(int)
+    df['end'] = df.end.astype(int)
+    return df

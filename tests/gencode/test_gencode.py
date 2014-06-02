@@ -5,60 +5,34 @@ import pytest
 
 import cdpybio as cpb
 
-class TestCombineSJOut:
-    def test_normal(self):
-        df = cpb.express.combine_express_output(FL)[0]
-        assert_frame_equal(df, TDF, check_names = True)
-    
-    def test_none(self):
-        assert cpb.express.combine_express_output(FL)[1] is None
-    
-    def test_est_counts(self):
-        df = pd.DataFrame([[ 25.,  54.,  81.],
-                           [ 34.,  78.,  69.],
-                           [ 71.,  88.,  35.]],
-                          index=TDF.index,
-                          columns=TDF.columns)
-        df.index.name = 'transcript'
-        df2 = cpb.express.combine_express_output(FL, column='est_counts')[0]
-        assert_frame_equal(df, df2)
-        df = pd.DataFrame([[  59.,  132.,  150.],
-                           [  71.,   88.,   35.]],
-                          index=GDF.index,
-                          columns=GDF.columns)
-        df.index.name = 'gene'
-        df2 = cpb.express.combine_express_output(FL, column='est_counts',
-                                                 tg='tg.tsv')[1]
-        assert_frame_equal(df, df2)
-    
-    def test_gene(self):
-        df = cpb.express.combine_express_output(FL, tg='tg.tsv')[1] 
-        assert_frame_equal(df, GDF)
-    
-    def test_missing_values(self):
-        with pytest.raises(SystemExit):
-            cpb.express.combine_express_output(['results.a.xprs',
-                                                'results.missing.xprs'])
-    
-    def test_names(self):
-        df = deepcopy(TDF)
-        df.columns = ['a','b','c']
-        df2 = cpb.express.combine_express_output(FL, names=['a','b','c'])[0] 
-        assert_frame_equal(df, df2)
-        df = deepcopy(GDF)
-        df.columns = ['a','b','c']
-        df2 = cpb.express.combine_express_output(FL, names=['a','b','c'], 
-                                                 tg='tg.tsv')[1]
-        assert_frame_equal(df, df2)
-    
-    def test_define_sample_names(self):
-        df = deepcopy(TDF)
-        df.columns = ['a','b','c']
-        fnc = lambda x: x.split('.')[1]
-        df2 = cpb.express.combine_express_output(FL, define_sample_name=fnc)[0]
-        assert_frame_equal(df, df2)
-        df = deepcopy(GDF)
-        df.columns = ['a','b','c']
-        df2 = cpb.express.combine_express_output(FL, names=['a','b','c'], 
-                                                 tg='tg.tsv')[1]
+# class TestMakeTranscriptGeneSe:
+#     2
+# 
+# class TestMakeGeneInfoDf:
+#     2
+# 
+class TestMakeSpliceJunctionDf:
+    def test_plus(self):
+        df = pd.DataFrame(index=[u'chr1:12228-12612:+', u'chr1:12722-13220:+',
+                                 u'chr1:12722-13224:+', u'chr1:12228-12594:+',
+                                 u'chr1:12722-13402:+', u'chr1:13656-13660:+',
+                                 u'chr1:12058-12178:+', u'chr1:12698-12974:+',
+                                 u'chr1:13053-13220:+', u'chr1:13375-13452:+'])
+
+        df['gene'] = 'ENSG00000223972.4'
+        df['chrom'] = 'chr1'
+        df['start'] = [12228, 12722, 12722, 12228, 12722, 13656, 12058, 12698,
+                       13053, 13375]
+        df['end'] = [12612, 13220, 13224, 12594, 13402, 13660, 12178, 12974,
+                     13220, 13452]
+        df['strand'] = '+'
+        df['chrom:start'] = df.chrom + ':' + df.start.astype(str)
+        df['chrom:end'] = df.chrom + ':' + df.end.astype(str)
+        df['donor'] = df['chrom:start'] + ':' + df.strand
+        df['acceptor'] = df['chrom:end'] + ':' + df.strand
+        df['intron'] = (df.chrom + ':' + df.start.astype(str) + '-' + 
+                        df.end.astype(str))
+
+
+        df2 = cpb.gencode.make_splice_junction_df('DDX11L1.gtf')
         assert_frame_equal(df, df2)
