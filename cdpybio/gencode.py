@@ -15,6 +15,78 @@ def _gencode_acceptor(chrom,start,end,strand):
     if strand == '-':
         return '{}:{}:{}'.format(chrom,start,strand)
 
+def make_transcript_gene_se(fn):
+    """
+    Make a Pandas Series with transcript ID's as the index and values as the
+    gene ID containing that transcript.
+
+    Parameters
+    ----------
+    fn : str of filename 
+        Filename of the Gencode gtf file
+
+    Returns
+    -------
+    se : pandas.Series
+        Make a Pandas Series with transcript ID's as the index and values as the
+        gene ID containing that transcript.
+
+    """
+    import itertools as it
+
+    import HTSeq
+
+    gtf = it.islice(HTSeq.GFF_Reader(fn), None)
+    transcripts = []
+    genes = []
+    line = gtf.next()
+    while line != '':
+        if line.type == 'transcript':
+            transcripts.append(line.attr['transcript_id'])
+            genes.append(line.attr['gene_id'])
+        try:
+            line = gtf.next()
+        except StopIteration:
+            line = ''
+   
+    return pd.Series(genes, index=transcripts)
+
+def make_gene_info_df(fn):
+    """ 
+    Make a Pandas dataframe with gene information
+
+    Parameters
+    ----------
+    fn : str of filename 
+        Filename of the Gencode gtf file
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Pandas dataframe indexed by gene id with the following columns:
+        gene_type, gene_status, gene_name.
+
+    """
+    import itertools as it
+
+    import HTSeq
+
+    gff_iter = it.islice(HTSeq.GFF_Reader(fn),None)
+    convD = dict()
+    eof = False
+    while not eof:
+        try:
+            entry = gff_iter.next()
+            if entry.type == 'gene':
+                convD[entry.attr['gene_id']] = [entry.attr['gene_type'], 
+                                                entry.attr['gene_status'],
+                                                entry.attr['gene_name']]
+        except StopIteration:
+            eof = True
+
+    return pd.DataFrame(convD, index=['gene_id', 'gene_type', 'gene_status',
+                                      'gene_name']).T
+
 def make_splice_junction_df(fn,type='gene'):
     """Read the Gencode gtf file and make a pandas dataframe describing the 
     splice junctions
