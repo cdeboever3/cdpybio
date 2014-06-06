@@ -84,8 +84,9 @@ def make_gene_info_df(fn):
         except StopIteration:
             eof = True
 
-    return pd.DataFrame(convD, index=['gene_id', 'gene_type', 'gene_status',
-                                      'gene_name']).T
+    df = pd.DataFrame(convD, index=['gene_type', 'gene_status', 'gene_name']).T
+    df.index.name = 'gene_id'
+    return df
 
 def make_splice_junction_df(fn,type='gene'):
     """Read the Gencode gtf file and make a pandas dataframe describing the 

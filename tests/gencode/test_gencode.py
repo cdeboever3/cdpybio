@@ -19,9 +19,17 @@ class TestMakeTranscriptGeneSe:
         se2 = cpb.gencode.make_transcript_gene_se('annot.gtf')
         assert_series_equal(se, se2)
 
-# class TestMakeGeneInfoDf:
-#     2
-# 
+class TestMakeGeneInfoDf:
+    def test_make_gene_info_df(self):
+
+        df = pd.DataFrame([['pseudogene', 'KNOWN', 'DDX11L1'],
+                           ['antisense', 'NOVEL', 'RP11-34P13.7']], 
+                          index=[u'ENSG00000223972.4', u'ENSG00000238009.2'],
+                          columns=[u'gene_type', u'gene_status', u'gene_name'])
+        df.index.name = 'gene_id'
+        df2 = cpb.gencode.make_gene_info_df('annot.gtf')
+        assert_frame_equal(df, df2)
+
 class TestMakeSpliceJunctionDf:
     def test_plus(self):
         df = pd.DataFrame(index=[u'chr1:12228-12612:+', u'chr1:12722-13220:+',
