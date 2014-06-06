@@ -187,7 +187,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
     annotDF['first_bp_intron'] = annotDF['first_bp_intron'].astype(int)
     annotDF['last_bp_intron'] = annotDF['last_bp_intron'].astype(int)
-    annotDF['annotated'] = annotDF['last_bp_intron'].astype(bool)
+    annotDF['annotated'] = annotDF['annotated'].astype(bool)
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
 

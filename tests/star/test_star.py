@@ -92,11 +92,11 @@ class TestMakeSJOutPanel:
                       'SJ.out.tab.new':df2})
         p = p.astype(int)
         a = pd.DataFrame(
-            [['chr1', 2, 25, '+', 'GT/AG', True],
-             ['chr1', 30, 40, '+', 'CT/AC', True],
-             ['chr1', 5, 30, '+', 'GT/AG', True],
+            [['chr1', 2, 25, '+', 'GT/AG', False],
+             ['chr1', 30, 40, '+', 'CT/AC', False],
+             ['chr1', 5, 30, '+', 'GT/AG', False],
              ['chr1', 5, 20, '+', 'GT/AG', True],
-             ['chr1', 3, 25, '+', 'CT/AC', True],
+             ['chr1', 3, 25, '+', 'CT/AC', False],
              ['chr1', 10, 20, '+', 'CT/AC', True]],
             index=[u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
                    u'chr1:3-25', u'chr1:10-20'],
