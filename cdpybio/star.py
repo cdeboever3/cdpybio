@@ -476,3 +476,200 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     f.close()
 
     return countsDF, annotDF
+
+def _make_splice_targets_dict(df, strand, feature):
+    """Make dict mapping each donor to the location of all acceptors it splices
+    to or each acceptor to all donors it splices from.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame Dataframe with splice junction information from
+        external database containing columns 'gene', 'chrom', 'start', 'end',
+        'strand', 'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+
+    Returns
+    -------
+    d : dict
+        If feature='donor', dict whose keys are all distinct donors in df and
+        whose values are the distinct locations (integers) of the acceptors that
+        donor splices to in a numpy array. If feature='acceptor', dict whose
+        keys are all distinct acceptors in df and whose values are the distinct
+        locations (integers) of the donors that acceptor splices from in a numpy
+        array.
+    
+    """
+    g = ext[ext.strand == strand].groupby(feature)
+    d = dict()
+    if strand == '+':
+        if feature == 'donor':
+            target = 'end'
+        if feature == 'acceptor':
+            target = 'start'
+    if strand == '-':
+        if feature == 'donor':
+            target = 'start'
+        if feature == 'acceptor':
+            target = 'end'
+
+    for k in g.groups.keys():
+        d[k] = np.array(set(df.ix[g.groups[k], target]))
+    return d
+
+def find_novel_donor_acceptor_dist(annot, ext):
+    """Find nearest annotated upstream/downstream donor/acceptor for novel
+    donor/acceptors 
+
+    Parameters
+    ----------
+    annot : pandas.DataFrame
+        Dataframe with observed splice junctions (novel and known) with columns
+        'chrom', 'first_bp_intron', 'last_bp_intron', 'strand', 'intron_motif',
+        'annotated', 'ext_annotated', 'chr:start', 'chr:end', 'gene_id',
+        'donor', 'acceptor', 'novel_donor', 'novel_acceptor'.
+
+    ext : pandas.DataFrame 
+        Dataframe with splice junction information from external database
+        containing columns 'gene', 'chrom', 'start', 'end', 'strand',
+        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+
+    Returns
+    -------
+    annot : pandas.DataFrame
+        Annotation information with added columns for distance from novel
+        donor/acceptor to nearest upstream/downstream donor/acceptor.
+    
+    """
+    plus_donor_to_acceptors = _make_splice_targets_dict(ext, '+', 'donor')
+    plus_acceptor_to_donors = _make_splice_targets_dict(ext, '+', 'acceptor')
+    minus_donor_to_acceptors = _make_splice_targets_dict(ext, '-', 'donor')
+    minus_acceptor_to_donors= _make_splice_targets_dict(ext, '-', 'acceptor')
+
+    annot = copy.deepcopy(annot)
+    annot['upstream_donor_dist'] = np.nan
+    annot['downstream_donor_dist'] = np.nan
+    annot['upstream_acceptor_dist'] = np.nan
+    annot['downstream_acceptor_dist'] = np.nan
+
+    juncs = annot[annot.novel_donor & (annot.strand == '+')].index
+    up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
+                                             plus_acceptor_to_donors,
+                                             '+', 
+                                             'donor')
+    annot.ix[juncs, 'upstream_donor_dist'] = up
+    annot.ix[juncs, 'downstream_donor_dist'] = down
+
+    juncs = annot[annot.novel_donor & (annot.strand == '-')].index
+    up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
+                                             minus_acceptor_to_donors,
+                                             '-', 
+                                             'donor')
+    annot.ix[juncs, 'upstream_donor_dist'] = up
+    annot.ix[juncs, 'downstream_donor_dist'] = down
+
+    juncs = annot[annot.novel_acceptor & (annot.strand == '+')].index
+    up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
+                                             plus_donor_to_acceptors, 
+                                             '+', 
+                                             'acceptor')
+    annot.ix[juncs, 'upstream_donor_dist'] = up
+    annot.ix[juncs, 'downstream_donor_dist'] = down
+
+    juncs = annot[annot.novel_acceptor & (annot.strand == '-')].index
+    up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
+                                             minus_donor_to_acceptors, 
+                                             '-', 
+                                             'acceptor')
+    annot.ix[juncs, 'upstream_donor_dist'] = up
+    annot.ix[juncs, 'downstream_donor_dist'] = down
+    return annot
+
+def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
+    """Find nearest annotated upstream/downstream donor/acceptor for novel
+    donor/acceptors 
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dataframe with observed splice junctions (novel and known) with columns
+        'chrom', 'first_bp_intron', 'last_bp_intron', 'strand', 'intron_motif',
+        'annotated', 'ext_annotated', 'chr:start', 'chr:end', 'gene_id',
+        'donor', 'acceptor', 'novel_donor', 'novel_acceptor'.
+
+    d : dict
+        If df contains novel donors, should be a dict whose keys are acceptors
+        and whose values are the locations (integers) of all associated donors.
+        If df contains novel acceptors, should be a dict whose keys are donors
+        and whose values are the locations (integers) of all associated
+        accepators.
+
+    strand : str ('+' or '-')
+        Strand that features are on.
+
+    novel_feature : str ('donor' or 'acceptor')
+        Whether the dataframe contains novel donors or novel acceptors.
+
+    Returns
+    -------
+    up : list
+        List of distances from novel feature to nearest feature (of same type)
+        upstream. If upstream feature does not exist, the list will have a nan.
+
+    down : list
+        List of distances from novel feature to nearest feature (of same type)
+        downstream. If upstream feature does not exist, the list will have a 
+        nan.
+    
+    """
+    assert len(set(df.strand)) == 1
+    if novel_feature == 'donor':
+        assert df.novel_donor.sum() == df.shape[0]
+    if novel_feature == 'acceptor':
+        assert df.novel_acceptor.sum() == df.shape[0]
+    # For a novel donor, we want to return the distance to the nearest upstream
+    # and downstream donors that use the same acceptor. For a novel acceptor, we
+    # want to return the distance to the nearest upstream and downstream
+    # acceptors that use the same donor. In some cases there may not be one of
+    # the upstream or downstream donors/acceptors. In that case we will just
+    # return nan.
+    if strand == '+':
+        if novel_feature == 'donor':
+            annot_feature = 'acceptor'
+            novel_location = 'start'
+        if novel_feature == 'acceptor':
+            annot_feature = 'donor'
+            novel_location = 'end'
+    if strand == '-':
+        if novel_feature == 'donor':
+            annot_feature = 'acceptor'
+            novel_location = 'end' 
+        if novel_feature == 'acceptor':
+            annot_feature = 'donor'
+            novel_location = 'start'
+
+    upstream_dists = []
+    downstream_dists = []
+
+    for i in df.index:
+        a = df.ix[i, annot_feature]
+        diff = df.ix[i, novel_location] - d[i]
+        pos = diff[diff > 0]
+        neg = diff[diff < 0]
+        if strand == '+':
+            if pos.shape[0] == 0:
+                upstream_dists.append(np.nan)
+            else:
+                upstream_dists.append(pos.min())
+            if neg.shape[0] == 0:
+                downstream_dists.append(np.nan)
+            else:
+                downstream_dists.append(np.abs(neg).min())
+        if strand == '-':
+            if pos.shape[0] == 0:
+                downstream_dists.append(np.nan)
+            else:
+                downstream_dists.append(pos.min())
+            if neg.shape[0] == 0:
+                upstream_dists.append(np.nan)
+            else:
+                upstream_dists.append(np.abs(neg).min())
+    return upstream_dists, downstream_dists
