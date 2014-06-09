@@ -3,17 +3,17 @@ import sys
 
 import pandas as pd
 
-def _gencode_donor(chrom,start,end,strand):
+def _gencode_donor(chrom, start, end, strand):
     if strand == '+':
-        return '{}:{}:{}'.format(chrom,start,strand)
+        return '{}:{}:{}'.format(chrom, start, strand)
     if strand == '-':
-        return '{}:{}:{}'.format(chrom,end,strand)
+        return '{}:{}:{}'.format(chrom, end, strand)
 
-def _gencode_acceptor(chrom,start,end,strand):
+def _gencode_acceptor(chrom, start, end, strand):
     if strand == '+':
-        return '{}:{}:{}'.format(chrom,end,strand)
+        return '{}:{}:{}'.format(chrom, end, strand)
     if strand == '-':
-        return '{}:{}:{}'.format(chrom,start,strand)
+        return '{}:{}:{}'.format(chrom, start, strand)
 
 def make_transcript_gene_se(fn):
     """
@@ -71,7 +71,7 @@ def make_gene_info_df(fn):
 
     import HTSeq
 
-    gff_iter = it.islice(HTSeq.GFF_Reader(fn),None)
+    gff_iter = it.islice(HTSeq.GFF_Reader(fn), None)
     convD = dict()
     eof = False
     while not eof:
@@ -88,7 +88,7 @@ def make_gene_info_df(fn):
     df.index.name = 'gene_id'
     return df
 
-def make_splice_junction_df(fn,type='gene'):
+def make_splice_junction_df(fn, type='gene'):
     """Read the Gencode gtf file and make a pandas dataframe describing the 
     splice junctions
 

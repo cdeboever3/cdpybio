@@ -4,7 +4,7 @@ import pdb
 import pandas as pd
 
 # Column labels for SJ.out.tab.
-COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
+COLUMN_NAMES = ('chrom', 'start', 'end', 'strand',
                 'intron_motif', 'annotated',
                 'unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang')
@@ -12,33 +12,33 @@ COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
 COUNT_COLS = ('unique_junction_reads', 'multimap_junction_reads',
               'max_overhang')
 # Subset of columns from SJ.out.tab.
-ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
+ANNOTATION_COLS = ('chrom', 'start', 'end', 'strand',
                    'intron_motif', 'annotated')
 # TODO: add strand to above list. I don't use the STAR strand because I didn't
 # understand it (maybe buggy?) but I'm sure it's fixed in recent versions.
 
 def _sj_out_junction(row):
-    return '{}:{}-{}'.format(row['chrom'], row['first_bp_intron'],
-                             row['last_bp_intron'])
+    return '{}:{}-{}'.format(row['chrom'], row['start'],
+                             row['end'])
 
 def _sj_out_junction_with_strand(row):
-    return '{}:{}-{}:{}'.format(row['chrom'], row['first_bp_intron'],
-                             row['last_bp_intron'], row['strand'])
+    return '{}:{}-{}:{}'.format(row['chrom'], row['start'],
+                             row['end'], row['strand'])
 
 def _sj_out_donor(row):
     if row['strand'] == '+':
-        return '{}:{}:{}'.format(row['chrom'], row['first_bp_intron'], 
+        return '{}:{}:{}'.format(row['chrom'], row['start'], 
                                  row['strand'])
     if row['strand'] == '-':
-        return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
+        return '{}:{}:{}'.format(row['chrom'], row['end'], 
                                  row['strand'])
 
 def _sj_out_acceptor(row):
     if row['strand'] == '+':
-        return '{}:{}:{}'.format(row['chrom'], row['last_bp_intron'], 
+        return '{}:{}:{}'.format(row['chrom'], row['end'], 
                                  row['strand'])
     if row['strand'] == '-':
-        return '{}:{}:{}'.format(row['chrom'], row['first_bp_intron'], 
+        return '{}:{}:{}'.format(row['chrom'], row['start'], 
                                  row['strand'])
 
 def read_sj_out_tab(filename):
@@ -145,8 +145,8 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         ('unique_junction_reads', 'multimap_junction_reads', 'max_overhang')
 
     annotDF : pandas.DataFrame
-        Dataframe with values ANNOTATION_COLS = ('chrom', 'first_bp_intron', 
-        'last_bp_intron', 'intron_motif', 'annotated') that are otherwise
+        Dataframe with values ANNOTATION_COLS = ('chrom', 'start', 
+        'end', 'intron_motif', 'annotated') that are otherwise
         duplicated in the panel.
     
     """
@@ -185,8 +185,8 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     # dataframe in the panel, so we'll make a single dataframe holding that
     # information.
     annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
-    annotDF['first_bp_intron'] = annotDF['first_bp_intron'].astype(int)
-    annotDF['last_bp_intron'] = annotDF['last_bp_intron'].astype(int)
+    annotDF['start'] = annotDF['start'].astype(int)
+    annotDF['end'] = annotDF['end'].astype(int)
     annotDF['annotated'] = annotDF['annotated'].astype(bool)
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
@@ -256,7 +256,7 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
 
     annotDF : pandas.DataFrame
         Annotation information from STAR. Should have the following columns:
-        'chrom', 'first_bp_intron', 'last_bp_intron', 'intron_motif',
+        'chrom', 'start', 'end', 'intron_motif',
         'annotated'.
 
     extDF : pandas.DataFrame
@@ -296,9 +296,9 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     # Add column for start and end location (chromosome plus position for
     # uniqueness).
     annotDF['chr:start'] = annotDF.apply(
-        lambda x: '{}:{}'.format(x['chrom'],x['first_bp_intron']),axis=1)
+        lambda x: '{}:{}'.format(x['chrom'],x['start']),axis=1)
     annotDF['chr:end'] = annotDF.apply(
-        lambda x: '{}:{}'.format(x['chrom'],x['last_bp_intron']),axis=1)
+        lambda x: '{}:{}'.format(x['chrom'],x['end']),axis=1)
 
     ext_startS = set(extDF['chr:start'].values)
     ext_endS = set(extDF['chr:end'].values)
@@ -357,8 +357,8 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
                                             ext_acceptorS)
 
     # Sort by gene ID and start/end.
-    annotDF = annotDF.sort(columns=['gene_id', 'first_bp_intron', 
-                                    'last_bp_intron'])
+    annotDF = annotDF.sort(columns=['gene_id', 'start', 
+                                    'end'])
 
     # Make file with counts for the junctions we are interested in.
     L = [ juncRE.match(x).group().strip(':') for x in annotDF.index ]

@@ -36,8 +36,8 @@ class TestMisc:
                            ['chr1', 5, 20, '+', 'GT/AG', True, 20, 1, 14],
                            ['chr1', 5, 25, '+', 'CT/AC', True, 10, 1, 7],
                            ['chr1', 10, 20, '+', 'CT/AC', True, 20, 1, 7]],
-                          columns=[u'chrom', u'first_bp_intron',
-                                   u'last_bp_intron', u'strand',
+                          columns=[u'chrom', u'start',
+                                   u'end', u'strand',
                                    u'intron_motif', u'annotated',
                                    u'unique_junction_reads',
                                    u'multimap_junction_reads', u'max_overhang'])
@@ -71,8 +71,8 @@ class TestMakeSJOutPanel:
                           ['chr1', 5, 25, '+', 'CT/AC', True],
                           ['chr1', 10, 20, '+', 'CT/AC', True]],
                          index=[u'chr1:5-20', u'chr1:5-25', u'chr1:10-20'],
-                         columns=[u'chrom', u'first_bp_intron',
-                                  u'last_bp_intron', u'strand', u'intron_motif',
+                         columns=[u'chrom', u'start',
+                                  u'end', u'strand', u'intron_motif',
                                   u'annotated'])
         p2, a2 = cpb.star.make_sj_out_panel(d)
         assert_frame_equal(a, a2)
@@ -100,7 +100,7 @@ class TestMakeSJOutPanel:
              ['chr1', 10, 20, '+', 'CT/AC', True]],
             index=[u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
                    u'chr1:3-25', u'chr1:10-20'],
-            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron', u'strand',
+            columns=[u'chrom', u'start', u'end', u'strand',
                      u'intron_motif', u'annotated']
         )
         p2, a2 = cpb.star.make_sj_out_panel(d)
@@ -122,7 +122,7 @@ class TestFilterJxnsDonorAcceptor:
              ['chr1', 10, 20, '+', 'CT/AC', True, True, 'chr1:10', 
               'chr1:20', 'gene1', 'chr1:10:+', 'chr1:20:+', False, False]],
             index=[u'chr1:5-20:+', u'chr1:5-25:+', u'chr1:10-20:+'],
-            columns=[u'chrom', u'first_bp_intron', u'last_bp_intron', 
+            columns=[u'chrom', u'start', u'end', 
                      u'strand', u'intron_motif', u'annotated', 
                      u'ext_annotated', u'chr:start', u'chr:end', 
                      u'gene_id', u'donor', u'acceptor', u'novel_donor', 
