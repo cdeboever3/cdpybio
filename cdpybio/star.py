@@ -1,6 +1,7 @@
 import copy
 import pdb
 
+import numpy as np
 import pandas as pd
 
 # Column labels for SJ.out.tab.
@@ -520,7 +521,8 @@ def _make_splice_targets_dict(df, feature, strand):
             target = 'end'
 
     for k in g.groups.keys():
-        d[k] = set(df.ix[g.groups[k], target])
+        d[k] = np.array(list(set(df.ix[g.groups[k], target])))
+        d[k].sort()
     return d
 
 def find_novel_donor_acceptor_dist(annot, ext):
@@ -656,10 +658,10 @@ def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
 
     upstream_dists = []
     downstream_dists = []
-
+    
     for i in df.index:
         a = df.ix[i, annot_feature]
-        diff = df.ix[i, novel_location] - d[i]
+        diff = df.ix[i, novel_location] - d[a]
         pos = diff[diff > 0]
         neg = diff[diff < 0]
         if strand == '+':

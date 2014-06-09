@@ -1,5 +1,6 @@
 from copy import deepcopy
 from numpy import array
+import numpy as np
 import pandas as pd
 from pandas.util.testing import assert_frame_equal
 from pandas.util.testing import assert_panel_equal
@@ -154,7 +155,7 @@ class TestFilterJxnsDonorAcceptor:
                   'chr1:20', 'gene1', 'chr1:10:+', 'chr1:20:+', False, False]],
                 index=[u'chr1:2-25:+', u'chr1:3-25:+', u'chr1:5-20:+',
                        u'chr1:5-30:+', u'chr1:10-20:+'],
-                columns=[u'chrom', u'first_bp_intron', u'last_bp_intron',
+                columns=[u'chrom', u'start', u'end',
                          u'strand', u'intron_motif', u'annotated',
                          u'ext_annotated', u'chr:start', u'chr:end', u'gene_id',
                          u'donor', u'acceptor', u'novel_donor',
@@ -178,16 +179,23 @@ class TestFindNovelDonorAcceptorDist:
         strand = '+'
         feature = 'donor'
         d = cpb.star._make_splice_targets_dict(df, feature, strand)
-        d2 = {'chr1:10:+': {20}, 'chr1:2:+': {20}, 'chr1:5:+': {20, 25}}
-        assert d == d2
+        d2 = {'chr1:10:+': array([20]),
+              'chr1:2:+': array([20]),
+              'chr1:5:+': array([20, 25])}
+        assert d.keys() == d2.keys()
+        for k in d.keys():
+            assert (d[k] == d2[k]).all()
 
     def test_make_splice_targets_dict_acceptor(self):
         df = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'acceptor'
         d = cpb.star._make_splice_targets_dict(df, feature, strand)
-        d2 = {'chr1:20:+': {2, 5, 10}, 'chr1:25:+': {5}}
-        assert d == d2
+        d2 = {'chr1:20:+': array([2, 5, 10]), 
+              'chr1:25:+': array([5])}
+        assert d.keys() == d2.keys()
+        for k in d.keys():
+            assert (d[k] == d2[k]).all()
 
     def test_dist_to_annot_donor_acceptor(self):
         ext = cpb.star.read_external_annotation('ext.tsv')
@@ -205,6 +213,27 @@ class TestFindNovelDonorAcceptorDist:
         a = a[(a.strand == strand) & (a.novel_acceptor)]
         up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
                                                           novel_feature)
+        assert up == [5]
+        assert down == [np.nan]
+
+    def test_dist_to_annot_donor_acceptor(self):
+        ext = cpb.star.read_external_annotation('ext.tsv')
+        strand = '+'
+        feature = 'acceptor'
+        # d is a dict whose keys are donors and whose values are sets that
+        # contain the positions of all acceptors associated with this donor.
+        d = cpb.star._make_splice_targets_dict(ext, feature, strand)
+
+        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+                                         'SJ.out.tab.nonew_a'])
+        p, a = cpb.star.make_sj_out_panel(sjd)
+        c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        novel_feature = 'donor'
+        a = a[(a.strand == strand) & (a.novel_donor)]
+        up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
+                                                          novel_feature)
+        assert up == [np.nan]
+        assert down == [2]
 
     def test_find_novel_donor_acceptor_dist(self):
         # TODO
