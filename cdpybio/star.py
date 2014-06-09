@@ -8,10 +8,12 @@ COLUMN_NAMES = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                 'intron_motif', 'annotated',
                 'unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang')
-# Subset of columns from SJ.out.tab.
+# Subset of columns from SJ.out.tab that are quantitative and change sample to
+# sample.
 COUNT_COLS = ('unique_junction_reads', 'multimap_junction_reads',
               'max_overhang')
-# Subset of columns from SJ.out.tab.
+# Subset of columns from SJ.out.tab that do not change sample to sample because
+# they are just annotation information.
 ANNOTATION_COLS = ('chrom', 'first_bp_intron', 'last_bp_intron', 'strand',
                    'intron_motif', 'annotated')
 # TODO: add strand to above list. I don't use the STAR strand because I didn't
@@ -477,15 +479,22 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
 
     return countsDF, annotDF
 
-def _make_splice_targets_dict(df, strand, feature):
+def _make_splice_targets_dict(df, feature, strand):
     """Make dict mapping each donor to the location of all acceptors it splices
     to or each acceptor to all donors it splices from.
 
     Parameters
     ----------
-    df : pandas.DataFrame Dataframe with splice junction information from
-        external database containing columns 'gene', 'chrom', 'start', 'end',
-        'strand', 'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+    df : pandas.DataFrame 
+        Dataframe with splice junction information from external database
+        containing columns 'gene', 'chrom', 'start', 'end', 'strand',
+        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+
+    feature : string
+        Either 'donor' or 'acceptor'.
+
+    strand : string
+        Either '+' or '-'.
 
     Returns
     -------
@@ -498,7 +507,7 @@ def _make_splice_targets_dict(df, strand, feature):
         array.
     
     """
-    g = ext[ext.strand == strand].groupby(feature)
+    g = df[df.strand == strand].groupby(feature)
     d = dict()
     if strand == '+':
         if feature == 'donor':
@@ -512,7 +521,7 @@ def _make_splice_targets_dict(df, strand, feature):
             target = 'end'
 
     for k in g.groups.keys():
-        d[k] = np.array(set(df.ix[g.groups[k], target]))
+        d[k] = set(df.ix[g.groups[k], target])
     return d
 
 def find_novel_donor_acceptor_dist(annot, ext):
