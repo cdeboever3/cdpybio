@@ -1,5 +1,6 @@
 from copy import deepcopy
 from numpy import array
+from numpy import nan
 import numpy as np
 import pandas as pd
 from pandas.util.testing import assert_frame_equal
@@ -220,8 +221,8 @@ class TestFindNovelDonorAcceptorDist:
         ext = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'acceptor'
-        # d is a dict whose keys are donors and whose values are sets that
-        # contain the positions of all acceptors associated with this donor.
+        # d is a dict whose keys are acceptors and whose values are sets that
+        # contain the positions of all donors associated with this acceptor.
         d = cpb.star._make_splice_targets_dict(ext, feature, strand)
 
         sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
@@ -236,5 +237,38 @@ class TestFindNovelDonorAcceptorDist:
         assert down == [2]
 
     def test_find_novel_donor_acceptor_dist(self):
-        # TODO
-        1 + 1
+        ext = cpb.star.read_external_annotation('ext.tsv')
+        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+                                         'SJ.out.tab.nonew_a'])
+        p, a = cpb.star.make_sj_out_panel(sjd)
+        c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
+
+        df2 = pd.DataFrame([['chr1', 2, 25, '+', 'GT/AG', False, False,
+                             'chr1:2', 'chr1:25', 'gene1', 'chr1:2:+',
+                             'chr1:25:+', False, False, nan, nan, nan, nan],
+                            ['chr1', 3, 25, '+', 'CT/AC', False, False,
+                             'chr1:3', 'chr1:25', 'gene1', 'chr1:3:+',
+                             'chr1:25:+', True, False, nan, 2.0, nan, nan],
+                            ['chr1', 5, 20, '+', 'GT/AG', True, True, 'chr1:5',
+                             'chr1:20', 'gene1', 'chr1:5:+', 'chr1:20:+', False,
+                             False, nan, nan, nan, nan], 
+                            ['chr1', 5, 30, '+', 'GT/AG', False, False,
+                             'chr1:5', 'chr1:30', 'gene1', 'chr1:5:+',
+                             'chr1:30:+', False, True, 5.0, nan, nan, nan],
+                            ['chr1', 10, 20, '+', 'CT/AC', True, True,
+                             'chr1:10', 'chr1:20', 'gene1', 'chr1:10:+',
+                             'chr1:20:+', False, False, nan, nan, nan, nan]],
+                           index=[u'chr1:2-25:+', u'chr1:3-25:+',
+                                  u'chr1:5-20:+', u'chr1:5-30:+',
+                                  u'chr1:10-20:+'],
+                           columns=[u'chrom', u'start', u'end', u'strand',
+                                    u'intron_motif', u'annotated',
+                                    u'ext_annotated', u'chr:start', u'chr:end',
+                                    u'gene_id', u'donor', u'acceptor',
+                                    u'novel_donor', u'novel_acceptor',
+                                    u'upstream_donor_dist',
+                                    u'downstream_donor_dist',
+                                    u'upstream_acceptor_dist',
+                                    u'downstream_acceptor_dist'])
+        assert_frame_equal(df, df2)
