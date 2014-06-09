@@ -181,7 +181,7 @@ class TestFindNovelDonorAcceptorDist:
         d2 = {'chr1:10:+': {20}, 'chr1:2:+': {20}, 'chr1:5:+': {20, 25}}
         assert d == d2
 
-    def test_make_splice_targets_dict_donor(self):
+    def test_make_splice_targets_dict_acceptor(self):
         df = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'acceptor'
@@ -190,8 +190,21 @@ class TestFindNovelDonorAcceptorDist:
         assert d == d2
 
     def test_dist_to_annot_donor_acceptor(self):
-        # TODO
-        1 + 1
+        ext = cpb.star.read_external_annotation('ext.tsv')
+        strand = '+'
+        feature = 'donor'
+        # d is a dict whose keys are donors and whose values are sets that
+        # contain the positions of all acceptors associated with this donor.
+        d = cpb.star._make_splice_targets_dict(ext, feature, strand)
+
+        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+                                         'SJ.out.tab.nonew_a'])
+        p, a = cpb.star.make_sj_out_panel(sjd)
+        c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        novel_feature = 'acceptor'
+        a = a[(a.strand == strand) & (a.novel_acceptor)]
+        up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
+                                                          novel_feature)
 
     def test_find_novel_donor_acceptor_dist(self):
         # TODO

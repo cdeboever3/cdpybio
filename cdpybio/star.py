@@ -548,10 +548,10 @@ def find_novel_donor_acceptor_dist(annot, ext):
         donor/acceptor to nearest upstream/downstream donor/acceptor.
     
     """
-    plus_donor_to_acceptors = _make_splice_targets_dict(ext, '+', 'donor')
-    plus_acceptor_to_donors = _make_splice_targets_dict(ext, '+', 'acceptor')
-    minus_donor_to_acceptors = _make_splice_targets_dict(ext, '-', 'donor')
-    minus_acceptor_to_donors= _make_splice_targets_dict(ext, '-', 'acceptor')
+    pos_donor_to_acceptors = _make_splice_targets_dict(ext, '+', 'donor')
+    pos_acceptor_to_donors = _make_splice_targets_dict(ext, '+', 'acceptor')
+    neg_donor_to_acceptors = _make_splice_targets_dict(ext, '-', 'donor')
+    neg_acceptor_to_donors = _make_splice_targets_dict(ext, '-', 'acceptor')
 
     annot = copy.deepcopy(annot)
     annot['upstream_donor_dist'] = np.nan
@@ -561,7 +561,7 @@ def find_novel_donor_acceptor_dist(annot, ext):
 
     juncs = annot[annot.novel_donor & (annot.strand == '+')].index
     up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
-                                             plus_acceptor_to_donors,
+                                             pos_acceptor_to_donors,
                                              '+', 
                                              'donor')
     annot.ix[juncs, 'upstream_donor_dist'] = up
@@ -569,7 +569,7 @@ def find_novel_donor_acceptor_dist(annot, ext):
 
     juncs = annot[annot.novel_donor & (annot.strand == '-')].index
     up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
-                                             minus_acceptor_to_donors,
+                                             neg_acceptor_to_donors,
                                              '-', 
                                              'donor')
     annot.ix[juncs, 'upstream_donor_dist'] = up
@@ -577,7 +577,7 @@ def find_novel_donor_acceptor_dist(annot, ext):
 
     juncs = annot[annot.novel_acceptor & (annot.strand == '+')].index
     up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
-                                             plus_donor_to_acceptors, 
+                                             pos_donor_to_acceptors, 
                                              '+', 
                                              'acceptor')
     annot.ix[juncs, 'upstream_donor_dist'] = up
@@ -585,7 +585,7 @@ def find_novel_donor_acceptor_dist(annot, ext):
 
     juncs = annot[annot.novel_acceptor & (annot.strand == '-')].index
     up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
-                                             minus_donor_to_acceptors, 
+                                             neg_donor_to_acceptors, 
                                              '-', 
                                              'acceptor')
     annot.ix[juncs, 'upstream_donor_dist'] = up
