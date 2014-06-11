@@ -59,6 +59,19 @@ class TestMisc:
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_a')
         assert_frame_equal(df, df2)
 
+    def test_read_sj_out_unk(self):
+        df = pd.DataFrame([['chr3', 2, 20, 'unk', 'GT/AG', True, 5, 1, 10],
+                           ['chr3', 5, 20, 'unk', 'GT/AG', True, 20, 1, 14],
+                           ['chr3', 5, 25, 'unk', 'CT/AC', True, 10, 1, 7],
+                           ['chr3', 10, 20, 'unk', 'CT/AC', True, 20, 1, 7]],
+                          columns=[u'chrom', u'start',
+                                   u'end', u'strand',
+                                   u'intron_motif', u'annotated',
+                                   u'unique_junction_reads',
+                                   u'multimap_junction_reads', u'max_overhang'])
+        df2 = cpb.star.read_sj_out_tab('SJ.out.tab.unk_nonew_a')
+        assert_frame_equal(df, df2)
+
 class TestMakeSJOutDict:
     def test_make_sj_out_dict(self):
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
