@@ -31,7 +31,7 @@ class TestMakeGeneInfoDf:
         assert_frame_equal(df, df2)
 
 class TestMakeSpliceJunctionDf:
-    def test_plus(self):
+    def test_pos(self):
         df = pd.DataFrame(index=[u'chr1:12228-12612:+', u'chr1:12722-13220:+',
                                  u'chr1:12722-13224:+', u'chr1:12228-12594:+',
                                  u'chr1:12722-13402:+', u'chr1:13656-13660:+',
@@ -54,4 +54,32 @@ class TestMakeSpliceJunctionDf:
 
 
         df2 = cpb.gencode.make_splice_junction_df('DDX11L1.gtf')
+        assert_frame_equal(df, df2)
+    
+    def test_neg(self):
+        df = pd.DataFrame(index=[u'chr1:91630-92090:-', 
+                                 u'chr1:92241-112699:-',
+                                 u'chr1:112805-120774:-',
+                                 u'chr1:112805-120720:-',
+                                 u'chr1:120933-129054:-',
+                                 u'chr1:111358-112699:-',
+                                 u'chr1:112805-129054:-',
+                                 u'chr1:129224-133373:-'])
+
+        df['gene'] = 'ENSG00000238009.2'
+        df['chrom'] = 'chr1'
+        df['start'] = [91630, 92241, 112805, 112805, 120933, 111358, 112805,
+                       129224]
+        df['end'] = [92090, 112699, 120774, 120720, 129054, 112699, 129054,
+                     133373]
+        df['strand'] = '-'
+        df['chrom:start'] = df.chrom + ':' + df.start.astype(str)
+        df['chrom:end'] = df.chrom + ':' + df.end.astype(str)
+        df['donor'] = df['chrom:end'] + ':' + df.strand
+        df['acceptor'] = df['chrom:start'] + ':' + df.strand
+        df['intron'] = (df.chrom + ':' + df.start.astype(str) + '-' + 
+                        df.end.astype(str))
+
+
+        df2 = cpb.gencode.make_splice_junction_df('RP11-34P13.7.gtf')
         assert_frame_equal(df, df2)
