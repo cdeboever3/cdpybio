@@ -33,7 +33,7 @@ class TestMisc:
         df = cpb.star.read_external_annotation('ext.tsv')
         assert_frame_equal(df, EXTDF)
 
-    def test_read_sj_out(self):
+    def test_read_sj_out_pos(self):
         df = pd.DataFrame([['chr1', 2, 20, '+', 'GT/AG', True, 5, 1, 10],
                            ['chr1', 5, 20, '+', 'GT/AG', True, 20, 1, 14],
                            ['chr1', 5, 25, '+', 'CT/AC', True, 10, 1, 7],
@@ -44,6 +44,19 @@ class TestMisc:
                                    u'unique_junction_reads',
                                    u'multimap_junction_reads', u'max_overhang'])
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.nonew_a')
+        assert_frame_equal(df, df2)
+    
+    def test_read_sj_out_pos(self):
+        df = pd.DataFrame([['chr2', 2, 20, '-', 'GT/AG', True, 5, 1, 10],
+                           ['chr2', 5, 20, '-', 'GT/AG', True, 20, 1, 14],
+                           ['chr2', 5, 25, '-', 'CT/AC', True, 10, 1, 7],
+                           ['chr2', 10, 20, '-', 'CT/AC', True, 20, 1, 7]],
+                          columns=[u'chrom', u'start',
+                                   u'end', u'strand',
+                                   u'intron_motif', u'annotated',
+                                   u'unique_junction_reads',
+                                   u'multimap_junction_reads', u'max_overhang'])
+        df2 = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_a')
         assert_frame_equal(df, df2)
 
 class TestMakeSJOutDict:
