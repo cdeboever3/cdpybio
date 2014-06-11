@@ -46,7 +46,7 @@ class TestMisc:
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.nonew_a')
         assert_frame_equal(df, df2)
     
-    def test_read_sj_out_pos(self):
+    def test_read_sj_out_neg(self):
         df = pd.DataFrame([['chr2', 2, 20, '-', 'GT/AG', True, 5, 1, 10],
                            ['chr2', 5, 20, '-', 'GT/AG', True, 20, 1, 14],
                            ['chr2', 5, 25, '-', 'CT/AC', True, 10, 1, 7],
@@ -73,7 +73,7 @@ class TestMisc:
         assert_frame_equal(df, df2)
 
 class TestMakeSJOutDict:
-    def test_make_sj_out_dict(self):
+    def test_make_sj_out_dict_pos(self):
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
         a = cpb.star.read_sj_out_tab('SJ.out.tab.nonew_a')
@@ -83,8 +83,18 @@ class TestMakeSJOutDict:
         assert_frame_equal(a, d['SJ.out.tab.nonew_a'])
         assert_frame_equal(b, d['SJ.out.tab.nonew_b'])
 
+    def test_make_sj_out_dict_neg(self):
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+                                       'SJ.out.tab.neg_nonew_b'])
+        a = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_a')
+        a.index = a.apply(lambda x: cpb.star._sj_out_junction(x), axis=1)
+        b = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_b')
+        b.index = b.apply(lambda x: cpb.star._sj_out_junction(x), axis=1)
+        assert_frame_equal(a, d['SJ.out.tab.neg_nonew_a'])
+        assert_frame_equal(b, d['SJ.out.tab.neg_nonew_b'])
+
 class TestMakeSJOutPanel:
-    def test_make_sj_out_panel(self):
+    def test_make_sj_out_panel_pos(self):
         ind = [u'chr1:5-20', u'chr1:5-25', u'chr1:10-20']
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
@@ -99,6 +109,28 @@ class TestMakeSJOutPanel:
                           ['chr1', 5, 25, '+', 'CT/AC', True],
                           ['chr1', 10, 20, '+', 'CT/AC', True]],
                          index=[u'chr1:5-20', u'chr1:5-25', u'chr1:10-20'],
+                         columns=[u'chrom', u'start',
+                                  u'end', u'strand', u'intron_motif',
+                                  u'annotated'])
+        p2, a2 = cpb.star.make_sj_out_panel(d)
+        assert_frame_equal(a, a2)
+        assert_panel_equal(p, p2)
+
+    def test_make_sj_out_panel_neg(self):
+        ind = [u'chr2:5-25', u'chr2:5-20', u'chr2:10-20']
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+                                       'SJ.out.tab.neg_nonew_b'])
+        df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = d['SJ.out.tab.neg_nonew_b'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = df2.fillna(0)
+
+        p = pd.Panel({'SJ.out.tab.neg_nonew_a':df,
+                      'SJ.out.tab.neg_nonew_b':df2})
+        p = p.astype(int)
+        a = pd.DataFrame([['chr2', 5, 25, '-', 'CT/AC', True],
+                          ['chr2', 5, 20, '-', 'GT/AG', True],
+                          ['chr2', 10, 20, '-', 'CT/AC', True]],
+                         index=ind,
                          columns=[u'chrom', u'start',
                                   u'end', u'strand', u'intron_motif',
                                   u'annotated'])
