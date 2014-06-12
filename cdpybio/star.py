@@ -81,6 +81,7 @@ def read_sj_out_tab(filename):
     sj.strand = sj.strand.apply(lambda x: ['unk','+','-'][x])
     # See https://groups.google.com/d/msg/rna-star/B0Y4oH8ZSOY/NO4OJbbUU4cJ for
     # definition of strand in SJout files.
+    sj = sj.sort(columns=['chrom', 'start', 'end'])
 
     return sj
 
@@ -190,6 +191,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     annotDF['start'] = annotDF['start'].astype(int)
     annotDF['end'] = annotDF['end'].astype(int)
     annotDF['annotated'] = annotDF['annotated'].astype(bool)
+    # Sort annotation and panel
+    annotDF = annotDF.sort(columns=['chrom', 'start', 'end'])
+    sj_outP = sj_outP.ix[:, annotDF.index, :]
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
 

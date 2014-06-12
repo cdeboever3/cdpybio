@@ -34,28 +34,26 @@ class TestMisc:
         assert_frame_equal(df, EXTDF)
 
     def test_read_sj_out_pos(self):
-        df = pd.DataFrame([['chr1', 2, 20, '+', 'GT/AG', True, 5, 1, 10],
-                           ['chr1', 5, 20, '+', 'GT/AG', True, 20, 1, 14],
-                           ['chr1', 5, 25, '+', 'CT/AC', True, 10, 1, 7],
-                           ['chr1', 10, 20, '+', 'CT/AC', True, 20, 1, 7]],
-                          columns=[u'chrom', u'start',
-                                   u'end', u'strand',
-                                   u'intron_motif', u'annotated',
-                                   u'unique_junction_reads',
-                                   u'multimap_junction_reads', u'max_overhang'])
+        vals = [['chr1', 2, 20, '+', 'GT/AG', True, 5, 1, 10],
+                ['chr1', 5, 20, '+', 'GT/AG', True, 20, 1, 14],
+                ['chr1', 5, 25, '+', 'CT/AC', True, 10, 1, 7],
+                ['chr1', 10, 20, '+', 'CT/AC', True, 20, 1, 7]]
+        cols = [u'chrom', u'start', u'end', u'strand', u'intron_motif',
+                u'annotated', u'unique_junction_reads',
+                u'multimap_junction_reads', u'max_overhang']
+        df = pd.DataFrame(vals, columns=cols)
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.nonew_a')
         assert_frame_equal(df, df2)
     
     def test_read_sj_out_neg(self):
-        df = pd.DataFrame([['chr2', 2, 20, '-', 'GT/AG', True, 5, 1, 10],
-                           ['chr2', 5, 20, '-', 'GT/AG', True, 20, 1, 14],
-                           ['chr2', 5, 25, '-', 'CT/AC', True, 10, 1, 7],
-                           ['chr2', 10, 20, '-', 'CT/AC', True, 20, 1, 7]],
-                          columns=[u'chrom', u'start',
-                                   u'end', u'strand',
-                                   u'intron_motif', u'annotated',
-                                   u'unique_junction_reads',
-                                   u'multimap_junction_reads', u'max_overhang'])
+        vals = [['chr2', 2, 20, '-', 'GT/AG', True, 5, 1, 10],
+                ['chr2', 5, 20, '-', 'GT/AG', True, 20, 1, 14],
+                ['chr2', 5, 25, '-', 'CT/AC', True, 10, 1, 7],
+                ['chr2', 10, 20, '-', 'CT/AC', True, 20, 1, 7]]
+        cols = [u'chrom', u'start', u'end', u'strand', u'intron_motif',
+                u'annotated', u'unique_junction_reads',
+                u'multimap_junction_reads', u'max_overhang']
+        df = pd.DataFrame(vals, columns=cols)
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_a')
         assert_frame_equal(df, df2)
 
@@ -117,7 +115,7 @@ class TestMakeSJOutPanel:
         assert_panel_equal(p, p2)
 
     def test_make_sj_out_panel_neg(self):
-        ind = [u'chr2:5-25', u'chr2:5-20', u'chr2:10-20']
+        ind = [u'chr2:5-20', u'chr2:5-25', u'chr2:10-20']
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_nonew_b'])
         df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
@@ -127,8 +125,8 @@ class TestMakeSJOutPanel:
         p = pd.Panel({'SJ.out.tab.neg_nonew_a':df,
                       'SJ.out.tab.neg_nonew_b':df2})
         p = p.astype(int)
-        a = pd.DataFrame([['chr2', 5, 25, '-', 'CT/AC', True],
-                          ['chr2', 5, 20, '-', 'GT/AG', True],
+        a = pd.DataFrame([['chr2', 5, 20, '-', 'GT/AG', True],
+                          ['chr2', 5, 25, '-', 'CT/AC', True],
                           ['chr2', 10, 20, '-', 'CT/AC', True]],
                          index=ind,
                          columns=[u'chrom', u'start',
@@ -139,8 +137,8 @@ class TestMakeSJOutPanel:
         assert_panel_equal(p, p2)
 
     def test_new_junctions_pos(self):
-        ind = [u'chr1:2-25', u'chr1:30-40', u'chr1:5-30', u'chr1:5-20',
-               u'chr1:3-25', u'chr1:10-20']
+        ind = [u'chr1:2-25', u'chr1:3-25', u'chr1:5-20', u'chr1:5-30',
+               u'chr1:10-20', u'chr1:30-40']
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.new'])
         df = d['SJ.out.tab.nonew_a'].ix[ind, cpb.star.COUNT_COLS]
@@ -153,11 +151,11 @@ class TestMakeSJOutPanel:
         p = p.astype(int)
         a = pd.DataFrame(
             [['chr1', 2, 25, '+', 'GT/AG', False],
-             ['chr1', 30, 40, '+', 'CT/AC', False],
-             ['chr1', 5, 30, '+', 'GT/AG', False],
-             ['chr1', 5, 20, '+', 'GT/AG', True],
              ['chr1', 3, 25, '+', 'CT/AC', False],
-             ['chr1', 10, 20, '+', 'CT/AC', True]],
+             ['chr1', 5, 20, '+', 'GT/AG', True],
+             ['chr1', 5, 30, '+', 'GT/AG', False],
+             ['chr1', 10, 20, '+', 'CT/AC', True],
+             ['chr1', 30, 40, '+', 'CT/AC', False]],
             index=ind,
             columns=[u'chrom', u'start', u'end', u'strand',
                      u'intron_motif', u'annotated']
@@ -167,8 +165,8 @@ class TestMakeSJOutPanel:
         assert_panel_equal(p, p2)
 
     def test_new_junctions_neg(self):
-        ind = [u'chr2:3-25', u'chr2:5-20', u'chr2:30-40', u'chr2:5-30',
-               u'chr2:2-25', u'chr2:10-20']
+        ind = [u'chr2:2-25', u'chr2:3-25', u'chr2:5-20', u'chr2:5-30',
+               u'chr2:10-20', u'chr2:30-40']
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_new'])
         df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
@@ -180,12 +178,12 @@ class TestMakeSJOutPanel:
                       'SJ.out.tab.neg_new':df2})
         p = p.astype(int)
         a = pd.DataFrame(
-            [['chr2', 3, 25, '-', 'CT/AC', False],
+            [['chr2', 2, 25, '-', 'GT/AG', False],
+             ['chr2', 3, 25, '-', 'CT/AC', False],
              ['chr2', 5, 20, '-', 'GT/AG', True],
-             ['chr2', 30, 40, '-', 'CT/AC', False],
              ['chr2', 5, 30, '-', 'GT/AG', False],
-             ['chr2', 2, 25, '-', 'GT/AG', False],
-             ['chr2', 10, 20, '-', 'CT/AC', True]],
+             ['chr2', 10, 20, '-', 'CT/AC', True],
+             ['chr2', 30, 40, '-', 'CT/AC', False]],
             index=ind,
             columns=[u'chrom', u'start', u'end', u'strand',
                      u'intron_motif', u'annotated']
