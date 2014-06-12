@@ -246,8 +246,8 @@ def read_external_annotation(fn, statsfile=None):
         f = open(statsfile, 'w')
         f.write('Read external annotation\t{}\n'.format(fn))
         f.write('Total number of junctions\t{}\n'.format(total_num))
-        f.write('''Number of junctions used in only one
-                gene\t{}'''.format(extDF.shape[0]))
+        f.write(('Number of junctions used in only one '
+                 'gene\t{}').format(extDF.shape[0]))
         f.close()
 
     return extDF
@@ -378,48 +378,48 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
         f = open(statsfile, 'w')
 
         t = extDF.shape[0]
-        f.write('''Number of junctions in external 
-                annotation\t{0:,}\n'''.format(t))
+        f.write(('Number of junctions in external '
+                 'annotation\t{0:,}\n').format(t))
 
         t = annotDF.annotated.sum()
-        f.write('''Number observed junctions in STAR
-                annotation\t{0:,}\n'''.format(t))
+        f.write(('Number observed junctions in STAR '
+                 'annotation\t{0:,}\n').format(t))
 
         t = annotDF.ext_annotated.sum()
-        f.write('''Number observed junctions in external
-                annotation\t{0:,}\n'''.format(t))
+        f.write(('Number observed junctions in external '
+                 'annotation\t{0:,}\n').format(t))
 
         t = annotDF.shape[0] - annotDF.ext_annotated.sum()
-        f.write('''Number of observed junctions not in external
-                annotation\t{0:,}\n'''.format(t))
+        f.write(('Number of observed junctions not in external '
+                 'annotation\t{0:,}\n').format(t))
 
         t = annotDF.ix[annotDF.ext_annotated == False,'annotated'].sum()
-        f.write('''Number of observed junctions not in external annotation but
-                in STAR annotation\t{0:,}\n'''.format(t))
+        f.write(('Number of observed junctions not in external annotation but '
+                 'in STAR annotation\t{0:,}\n').format(t))
 
         t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)
-        f.write('''Number of observed junctions not in external annotation and
-                not in STAR annotation\t{0:,}\n'''.format(t))
+        f.write(('Number of observed junctions not in external annotation and '
+                 'not in STAR annotation\t{0:,}\n').format(t))
   
         t = len(set(annotDF[annotDF.novel_donor].donor))
-        f.write('''Number of novel donors\t{0:,}\n'''.format(t))
+        f.write(('Number of novel donors\t{0:,}\n').format(t))
 
         t = annotDF.novel_donor.sum()
-        f.write('''Number of novel junctions with novel
-                donors\t{0:,}\n'''.format(t))
+        f.write(('Number of novel junctions with novel '
+                 'donors\t{0:,}\n').format(t))
 
         t = len(set(annotDF[annotDF.novel_acceptor].acceptor))
-        f.write('''Number of novel acceptors\t{0:,}\n'''.format(t))
+        f.write(('Number of novel acceptors\t{0:,}\n').format(t))
 
         t = annotDF.novel_acceptor.sum()
-        f.write('''Number of novel junctions with novel
-                acceptors\t{0:,}\n'''.format(t))
+        f.write(('Number of novel junctions with novel '
+                 'acceptors\t{0:,}\n').format(t))
 
         t = (annotDF[annotDF.ext_annotated].shape[0] - 
              sum(annotDF.novel_donor) - 
              sum(annotDF.novel_acceptor))
-        f.write('''Number of novel junctions with new combination of donor and
-                acceptor\t{0:,}\n'''.format(t))
+        f.write(('Number of novel junctions with new combination of donor and '
+                 'acceptor\t{0:,}\n').format(t))
 
         f.close()
    
@@ -481,7 +481,7 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     f.close()
 
     f = open(statsfile, 'w')
-    f.write(lines + lines2)
+    f.write(''.join(lines + lines2))
     f.close()
 
     return countsDF, annotDF
