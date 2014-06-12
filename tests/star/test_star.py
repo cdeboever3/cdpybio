@@ -34,8 +34,8 @@ class TestMisc:
                  'chr2:5:-', 'chr2:5-20']]
         ind = [u'chr1:10-20:+', u'chr1:5-25:+', u'chr1:2-20:+', u'chr1:5-20:+',
                u'chr2:10-20:-', u'chr2:5-25:-', u'chr2:2-20:-', u'chr2:5-20:-']
-        cols=['gene', 'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end',
-              'donor', 'acceptor', 'intron']
+        cols=['gene', 'chrom', 'start', 'end', 'strand', 'chrom:start',
+              'chrom:end', 'donor', 'acceptor', 'intron']
         df = pd.DataFrame(vals, index=ind, columns=cols)
         df2 = cpb.star.read_external_annotation('ext.tsv')
         assert_frame_equal(df, df2)
@@ -216,7 +216,7 @@ class TestFilterJxnsDonorAcceptor:
             index=[u'chr1:5-20:+', u'chr1:5-25:+', u'chr1:10-20:+'],
             columns=[u'chrom', u'start', u'end', 
                      u'strand', u'intron_motif', u'annotated', 
-                     u'ext_annotated', u'chr:start', u'chr:end', 
+                     u'ext_annotated', u'chrom:start', u'chrom:end', 
                      u'gene_id', u'donor', u'acceptor', u'novel_donor', 
                      u'novel_acceptor'])
         c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
@@ -243,7 +243,7 @@ class TestFilterJxnsDonorAcceptor:
             index=[u'chr2:5-20:-', u'chr2:5-25:-', u'chr2:10-20:-'],
             columns=[u'chrom', u'start', u'end', 
                      u'strand', u'intron_motif', u'annotated', 
-                     u'ext_annotated', u'chr:start', u'chr:end', 
+                     u'ext_annotated', u'chrom:start', u'chrom:end', 
                      u'gene_id', u'donor', u'acceptor', u'novel_donor', 
                      u'novel_acceptor'])
         c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
@@ -274,11 +274,10 @@ class TestFilterJxnsDonorAcceptor:
                   'chr1:20', 'gene1', 'chr1:10:+', 'chr1:20:+', False, False]],
                 index=[u'chr1:2-25:+', u'chr1:3-25:+', u'chr1:5-20:+',
                        u'chr1:5-30:+', u'chr1:10-20:+'],
-                columns=[u'chrom', u'start', u'end',
-                         u'strand', u'intron_motif', u'annotated',
-                         u'ext_annotated', u'chr:start', u'chr:end', u'gene_id',
-                         u'donor', u'acceptor', u'novel_donor',
-                         u'novel_acceptor'])
+                columns=[u'chrom', u'start', u'end', u'strand', u'intron_motif',
+                         u'annotated', u'ext_annotated', u'chrom:start',
+                         u'chrom:end', u'gene_id', u'donor', u'acceptor',
+                         u'novel_donor', u'novel_acceptor'])
 
         c = pd.DataFrame([[25,  0],
                           [30,  0],
@@ -382,10 +381,10 @@ class TestFindNovelDonorAcceptorDist:
                                   u'chr1:10-20:+'],
                            columns=[u'chrom', u'start', u'end', u'strand',
                                     u'intron_motif', u'annotated',
-                                    u'ext_annotated', u'chr:start', u'chr:end',
-                                    u'gene_id', u'donor', u'acceptor',
-                                    u'novel_donor', u'novel_acceptor',
-                                    u'upstream_donor_dist',
+                                    u'ext_annotated', u'chrom:start',
+                                    u'chrom:end', u'gene_id', u'donor',
+                                    u'acceptor', u'novel_donor',
+                                    u'novel_acceptor', u'upstream_donor_dist',
                                     u'downstream_donor_dist',
                                     u'upstream_acceptor_dist',
                                     u'downstream_acceptor_dist'])

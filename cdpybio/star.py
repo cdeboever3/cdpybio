@@ -1,4 +1,5 @@
 import copy
+import os
 import pdb
 
 import numpy as np
@@ -218,7 +219,8 @@ def read_external_annotation(fn, statsfile=None):
     fn : filename str
         File with splice junctions from annotation. The file should have a
         header and contained the following columns  'gene', 'chrom', 'start',
-        'end', 'strand', 'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+        'end', 'strand', 'chrom:start', 'chrom:end', 'donor', 'acceptor', 
+        'intron'.
 
     statsfile : string
         File to write statistics to.
@@ -229,6 +231,7 @@ def read_external_annotation(fn, statsfile=None):
         DataFrame indexed by splice junction
     
     """
+    assert os.path.exists(fn)
     extDF = pd.read_table(fn, index_col=0, header=0)
     
     # In rare cases, a splice junction might be used by more than one gene. For
@@ -269,7 +272,7 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
         Dataframe containing information about annotated splice sites. These can
         differ from those provided to STAR for alignment. The dataframe should
         have the following columns: 'gene', 'chrom', 'start', 'end', 'strand',
-        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'
+        'chrom:start', 'chrom:end', 'donor', 'acceptor', 'intron'
 
     Returns
     -------
@@ -301,19 +304,19 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
 
     # Add column for start and end location (chromosome plus position for
     # uniqueness).
-    annotDF['chr:start'] = annotDF.apply(
+    annotDF['chrom:start'] = annotDF.apply(
         lambda x: '{}:{}'.format(x['chrom'],x['start']),axis=1)
-    annotDF['chr:end'] = annotDF.apply(
+    annotDF['chrom:end'] = annotDF.apply(
         lambda x: '{}:{}'.format(x['chrom'],x['end']),axis=1)
 
-    ext_startS = set(extDF['chr:start'].values)
-    ext_endS = set(extDF['chr:end'].values)
+    ext_startS = set(extDF['chrom:start'].values)
+    ext_endS = set(extDF['chrom:end'].values)
 
     # Remove junctions that don't have a start or end shared with external
     # database.
     junctions_to_removeSE = annotDF[annotDF.ext_annotated == False].apply(
-        lambda x: (x['chr:start'] in ext_startS) + 
-        (x['chr:end'] in ext_endS) == 0,axis=1)
+        lambda x: (x['chrom:start'] in ext_startS) + 
+        (x['chrom:end'] in ext_endS) == 0,axis=1)
     if junctions_to_removeSE.shape[0] > 0:
         annotDF = annotDF.drop(junctions_to_removeSE[junctions_to_removeSE].index)
 
@@ -325,15 +328,15 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
 
     # Now we'll figure out the genes for the junctions that aren't in our
     # database. We can associate each start and end with a gene and use this.
-    start_geneSE = pd.Series(dict(zip(extDF['chr:start'], extDF.gene)))
-    end_geneSE = pd.Series(dict(zip(extDF['chr:end'], extDF.gene)))
+    start_geneSE = pd.Series(dict(zip(extDF['chrom:start'], extDF.gene)))
+    end_geneSE = pd.Series(dict(zip(extDF['chrom:end'], extDF.gene)))
 
     for ind in annotDF[annotDF.ext_annotated == False].index:
-        cur_start = annotDF.ix[ind,'chr:start'] 
+        cur_start = annotDF.ix[ind,'chrom:start'] 
         if cur_start in start_geneSE.index:
             annotDF.ix[ind,'gene_id'] = start_geneSE[cur_start]
     for ind in annotDF[annotDF.ext_annotated == False].index:
-        cur_end = annotDF.ix[ind,'chr:end'] 
+        cur_end = annotDF.ix[ind,'chrom:end'] 
         if cur_end in end_geneSE.index:
             annotDF.ix[ind,'gene_id'] = end_geneSE[cur_end]
 
@@ -435,7 +438,7 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     external_db : str
         Filename of splice junction information from external database. The file
         should have a header and contained the following columns  'gene',
-        'chrom', 'start', 'end', 'strand', 'chr:start', 'chr:end', 'donor',
+        'chrom', 'start', 'end', 'strand', 'chrom:start', 'chrom:end', 'donor',
         'acceptor', 'intron'.
 
     total_jxn_cov_cutoff : int
@@ -492,7 +495,7 @@ def _make_splice_targets_dict(df, feature, strand):
     df : pandas.DataFrame 
         Dataframe with splice junction information from external database
         containing columns 'gene', 'chrom', 'start', 'end', 'strand',
-        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+        'chrom:start', 'chrom:end', 'donor', 'acceptor', 'intron'.
 
     feature : string
         Either 'donor' or 'acceptor'.
@@ -538,13 +541,13 @@ def find_novel_donor_acceptor_dist(annot, ext):
     annot : pandas.DataFrame
         Dataframe with observed splice junctions (novel and known) with columns
         'chrom', 'first_bp_intron', 'last_bp_intron', 'strand', 'intron_motif',
-        'annotated', 'ext_annotated', 'chr:start', 'chr:end', 'gene_id',
+        'annotated', 'ext_annotated', 'chrom:start', 'chrom:end', 'gene_id',
         'donor', 'acceptor', 'novel_donor', 'novel_acceptor'.
 
     ext : pandas.DataFrame 
         Dataframe with splice junction information from external database
         containing columns 'gene', 'chrom', 'start', 'end', 'strand',
-        'chr:start', 'chr:end', 'donor', 'acceptor', 'intron'.
+        'chrom:start', 'chrom:end', 'donor', 'acceptor', 'intron'.
 
     Returns
     -------
@@ -606,7 +609,7 @@ def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
     df : pandas.DataFrame
         Dataframe with observed splice junctions (novel and known) with columns
         'chrom', 'first_bp_intron', 'last_bp_intron', 'strand', 'intron_motif',
-        'annotated', 'ext_annotated', 'chr:start', 'chr:end', 'gene_id',
+        'annotated', 'ext_annotated', 'chrom:start', 'chrom:end', 'gene_id',
         'donor', 'acceptor', 'novel_donor', 'novel_acceptor'.
 
     d : dict
