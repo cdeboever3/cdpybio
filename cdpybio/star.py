@@ -442,7 +442,7 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
         Discard junctions with less than this many reads summed over all
         samples.
 
-    define_samle_name : function
+    define_sample_name : function
         A function mapping the SJ.out.tab filenames to sample names.
 
     statsfile : string
