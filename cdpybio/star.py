@@ -578,16 +578,16 @@ def find_novel_donor_acceptor_dist(annot, ext):
                                              pos_donor_to_acceptors, 
                                              '+', 
                                              'acceptor')
-    annot.ix[juncs, 'upstream_donor_dist'] = up
-    annot.ix[juncs, 'downstream_donor_dist'] = down
+    annot.ix[juncs, 'upstream_acceptor_dist'] = up
+    annot.ix[juncs, 'downstream_acceptor_dist'] = down
 
     juncs = annot[annot.novel_acceptor & (annot.strand == '-')].index
     up, down = _dist_to_annot_donor_acceptor(annot.ix[juncs], 
                                              neg_donor_to_acceptors, 
                                              '-', 
                                              'acceptor')
-    annot.ix[juncs, 'upstream_donor_dist'] = up
-    annot.ix[juncs, 'downstream_donor_dist'] = down
+    annot.ix[juncs, 'upstream_acceptor_dist'] = up
+    annot.ix[juncs, 'downstream_acceptor_dist'] = down
     return annot
 
 def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
