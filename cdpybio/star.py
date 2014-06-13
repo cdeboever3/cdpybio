@@ -225,10 +225,11 @@ def read_external_annotation(fn):
     extDF = extDF.drop('intron_count', axis=1)
 
     stats = []
+    stats.append('External database stats')
     stats.append('Read external annotation\t{}'.format(fn))
-    stats.append('Total number of junctions\t{}'.format(total_num))
+    stats.append('Total number of junctions\t{:,}'.format(total_num))
     stats.append(('Number of junctions used in only one '
-                  'gene\t{}').format(extDF.shape[0]))
+                  'gene\t{:,}').format(extDF.shape[0]))
 
     return extDF, stats
 
@@ -359,48 +360,49 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
 
     stats = []
     t = extDF.shape[0]
+    stats.append('Junction filtering stats')
     stats.append(('Number of junctions in external '
-                  'annotation\t{0:,}\n').format(t))
+                  'annotation\t{0:,}').format(t))
 
     t = annotDF.annotated.sum()
     stats.append(('Number observed junctions in STAR '
-                  'annotation\t{0:,}\n').format(t))
+                  'annotation\t{0:,}').format(t))
 
     t = annotDF.ext_annotated.sum()
     stats.append(('Number observed junctions in external '
-                  'annotation\t{0:,}\n').format(t))
+                  'annotation\t{0:,}').format(t))
 
     t = annotDF.shape[0] - annotDF.ext_annotated.sum()
     stats.append(('Number of observed junctions not in external '
-                  'annotation\t{0:,}\n').format(t))
+                  'annotation\t{0:,}').format(t))
 
     t = annotDF.ix[annotDF.ext_annotated == False,'annotated'].sum()
     stats.append(('Number of observed junctions not in external annotation but '
-                  'in STAR annotation\t{0:,}\n').format(t))
+                  'in STAR annotation\t{0:,}').format(t))
 
     t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)
     stats.append(('Number of observed junctions not in external annotation and '
-                  'not in STAR annotation\t{0:,}\n').format(t))
+                  'not in STAR annotation\t{0:,}').format(t))
   
     t = len(set(annotDF[annotDF.novel_donor].donor))
-    stats.append(('Number of novel donors\t{0:,}\n').format(t))
+    stats.append(('Number of novel donors\t{0:,}').format(t))
 
     t = annotDF.novel_donor.sum()
     stats.append(('Number of novel junctions with novel '
-                  'donors\t{0:,}\n').format(t))
+                  'donors\t{0:,}').format(t))
 
     t = len(set(annotDF[annotDF.novel_acceptor].acceptor))
-    stats.append(('Number of novel acceptors\t{0:,}\n').format(t))
+    stats.append(('Number of novel acceptors\t{0:,}').format(t))
 
     t = annotDF.novel_acceptor.sum()
     stats.append(('Number of novel junctions with novel '
-                  'acceptors\t{0:,}\n').format(t))
+                  'acceptors\t{0:,}').format(t))
 
     t = (annotDF[annotDF.ext_annotated].shape[0] - 
          sum(annotDF.novel_donor) - 
          sum(annotDF.novel_acceptor))
     stats.append(('Number of novel junctions with new combination of donor and '
-                  'acceptor\t{0:,}\n').format(t))
+                  'acceptor\t{0:,}').format(t))
     return countDF, annotDF, stats
 
 def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20, 
@@ -441,15 +443,18 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     """
     stats = []
     sj_outD = _make_sj_out_dict(fns, define_sample_name=define_sample_name)
-    stats.append('Number of junctions in sj_out file per sample')
+    stats.append('Number of junctions in SJ.out file per sample')
     for k in sj_outD.keys():
         stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
+    stats.append('')
 
     sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
-    stats.append('sj_out panel size\t{0}'.format(sj_outP.shape))
+    stats.append('SJ.out panel size\t{0}'.format(sj_outP.shape))
+    stats.append('')
 
     extDF, ext_stats = read_external_annotation(external_db)
     stats += ext_stats
+    stats.append('')
 
     countsDF, annotDF, filter_stats = filter_jxns_donor_acceptor(sj_outP, 
                                                                  annotDF, 
