@@ -205,7 +205,7 @@ class TestFilterJxnsDonorAcceptor:
                                        'SJ.out.tab.nonew_b'])
         p, a = cpb.star._make_sj_out_panel(d)
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
-        c2, a2, stats = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c2, a2, stats = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
             [['chr1', 5, 20, '+', 'GT/AG', True, True, 'chr1:5', 
               'chr1:20', 'gene1', 'chr1:5:+', 'chr1:20:+', False, False], 
@@ -232,7 +232,7 @@ class TestFilterJxnsDonorAcceptor:
                                        'SJ.out.tab.neg_nonew_b'])
         p, a = cpb.star._make_sj_out_panel(d)
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
-        c2, a2, stats = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c2, a2, stats = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
             [['chr2', 5, 20, '-', 'GT/AG', True, True, 'chr2:5', 
               'chr2:20', 'gene2', 'chr2:20:-', 'chr2:5:-', False, False], 
@@ -260,7 +260,7 @@ class TestFilterJxnsDonorAcceptor:
                                        'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(d)
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
-        c2, a2, stats = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c2, a2, stats = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
                 [['chr1', 2, 25, '+', 'GT/AG', False, False, 'chr1:2',
                   'chr1:25', 'gene1', 'chr1:2:+', 'chr1:25:+', False, False],
@@ -296,7 +296,7 @@ class TestFilterJxnsDonorAcceptor:
                                        'SJ.out.tab.neg_nonew_a'])
         p, a = cpb.star._make_sj_out_panel(d)
         ext, es = cpb.star.read_external_annotation('ext.tsv')
-        c2, a2, s2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c2, a2, s2 = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
                 [['chr2', 2, 25, '-', 'GT/AG', False, False, 'chr2:2',
                   'chr2:25', 'gene2', 'chr2:25:-', 'chr2:2:-', False, False],
@@ -363,7 +363,7 @@ class TestFindNovelDonorAcceptorDist:
         sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
-        c, a, s = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         novel_feature = 'acceptor'
         a = a[(a.strand == strand) & (a.novel_acceptor)]
         up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
@@ -382,7 +382,7 @@ class TestFindNovelDonorAcceptorDist:
         sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
-        c, a, s = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         novel_feature = 'donor'
         a = a[(a.strand == strand) & (a.novel_donor)]
         up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
@@ -395,7 +395,7 @@ class TestFindNovelDonorAcceptorDist:
         sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
-        c, a, s = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
 
         df2 = pd.DataFrame([['chr1', 2, 25, '+', 'GT/AG', False, False,

@@ -233,7 +233,7 @@ def read_external_annotation(fn):
 
     return extDF, stats
 
-def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
+def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
     """Remove junctions that do not use an annotated donor or acceptor according
     to external junction annotation. Add strand and gene information for
     junctions according to external annoation (STAR strand ignored).
@@ -470,9 +470,9 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     stats += ext_stats
     stats.append('')
 
-    countsDF, annotDF, filter_stats = filter_jxns_donor_acceptor(sj_outP, 
-                                                                 annotDF, 
-                                                                 extDF)
+    countsDF, annotDF, filter_stats = _filter_jxns_donor_acceptor(sj_outP, 
+                                                                  annotDF, 
+                                                                  extDF)
     stats += filter_stats
     return countsDF, annotDF, stats
 
