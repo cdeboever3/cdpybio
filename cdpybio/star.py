@@ -83,10 +83,9 @@ def read_sj_out_tab(filename):
     # See https://groups.google.com/d/msg/rna-star/B0Y4oH8ZSOY/NO4OJbbUU4cJ for
     # definition of strand in SJout files.
     sj = sj.sort(columns=['chrom', 'start', 'end'])
-
     return sj
 
-def make_sj_out_dict(fns, define_sample_name=None):
+def _make_sj_out_dict(fns, define_sample_name=None):
     """Read multiple sj_outs, return dict with keys as sample names and values
     as sj_out dataframes
 
@@ -124,9 +123,10 @@ def make_sj_out_dict(fns, define_sample_name=None):
         assert len(index) == len(set(index))
         df.index = index
         sj_outD[sample] = df
+
     return sj_outD
 
-def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
+def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
     """Filter junctions from many sj_out files and make panel
 
     Parameters
@@ -138,9 +138,6 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         If the unique read coverage of a junction summed over all samples is not
         greater than or equal to this value, the junction will not be included
         in the final output.
-
-    statsfile : filename str
-        If provided, some stats will be printed to this file
 
     Returns
     -------
@@ -196,19 +193,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
 
-    if statsfile:
-        statsF = open(statsfile,'w')
-
-        statsF.write('Number of junctions in sj_out file per sample\n')
-        for k in num_jxns.keys():
-            statsF.write('{0}\t{1:,}\n'.format(k,num_jxns[k]))
-        statsF.write('\n')
-  
-        statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
-        statsF.close()
     return sj_outP, annotDF
 
-def read_external_annotation(fn, statsfile=None):
+def read_external_annotation(fn):
     """Read file with junctions from some database. This does not have to be the
     same splice junction database used with STAR
 
@@ -220,17 +207,18 @@ def read_external_annotation(fn, statsfile=None):
         'end', 'strand', 'chrom:start', 'chrom:end', 'donor', 'acceptor', 
         'intron'.
 
-    statsfile : string
-        File to write statistics to.
-
     Returns
     -------
     extDF : pandas.DataFrame
         DataFrame indexed by splice junction
+
+    stats : list of strings
+        Human readable statistics about the external database.
     
     """
     assert os.path.exists(fn)
     extDF = pd.read_table(fn, index_col=0, header=0)
+    total_num = extDF.shape[0]
     
     # In rare cases, a splice junction might be used by more than one gene. For
     # my purposes, these cases are confounding, so I will remove all such splice
@@ -240,17 +228,15 @@ def read_external_annotation(fn, statsfile=None):
     extDF = extDF[extDF.intron_count == 1]
     extDF = extDF.drop('intron_count', axis=1)
 
-    if statsfile:
-        f = open(statsfile, 'w')
-        f.write('Read external annotation\t{}\n'.format(fn))
-        f.write('Total number of junctions\t{}\n'.format(total_num))
-        f.write(('Number of junctions used in only one '
-                 'gene\t{}').format(extDF.shape[0]))
-        f.close()
+    stats = []
+    stats.append('Read external annotation\t{}'.format(fn))
+    stats.append('Total number of junctions\t{}'.format(total_num))
+    stats.append(('Number of junctions used in only one '
+                  'gene\t{}').format(extDF.shape[0]))
 
-    return extDF
+    return extDF, stats
 
-def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
+def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
     """Remove junctions that do not use an annotated donor or acceptor according
     to external junction annotation. Add strand and gene information for
     junctions according to external annoation (STAR strand ignored).
@@ -280,6 +266,9 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
 
     annotDF : pandas.DataFrame
         Annotation information for junctions that passed filtering criteria.
+    
+    stats : list of strings
+        Human readable statistics about the combining process.
     
     """
     import re
@@ -372,59 +361,54 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, statsfile=None):
     countDF = sj_outP.ix[:, L, 'unique_junction_reads']
     countDF.index = annotDF.index
 
-    if statsfile:
-        f = open(statsfile, 'w')
+    stats = []
+    t = extDF.shape[0]
+    stats.append(('Number of junctions in external '
+                  'annotation\t{0:,}\n').format(t))
 
-        t = extDF.shape[0]
-        f.write(('Number of junctions in external '
-                 'annotation\t{0:,}\n').format(t))
+    t = annotDF.annotated.sum()
+    stats.append(('Number observed junctions in STAR '
+                  'annotation\t{0:,}\n').format(t))
 
-        t = annotDF.annotated.sum()
-        f.write(('Number observed junctions in STAR '
-                 'annotation\t{0:,}\n').format(t))
+    t = annotDF.ext_annotated.sum()
+    stats.append(('Number observed junctions in external '
+                  'annotation\t{0:,}\n').format(t))
 
-        t = annotDF.ext_annotated.sum()
-        f.write(('Number observed junctions in external '
-                 'annotation\t{0:,}\n').format(t))
+    t = annotDF.shape[0] - annotDF.ext_annotated.sum()
+    stats.append(('Number of observed junctions not in external '
+                  'annotation\t{0:,}\n').format(t))
 
-        t = annotDF.shape[0] - annotDF.ext_annotated.sum()
-        f.write(('Number of observed junctions not in external '
-                 'annotation\t{0:,}\n').format(t))
+    t = annotDF.ix[annotDF.ext_annotated == False,'annotated'].sum()
+    stats.append(('Number of observed junctions not in external annotation but '
+                  'in STAR annotation\t{0:,}\n').format(t))
 
-        t = annotDF.ix[annotDF.ext_annotated == False,'annotated'].sum()
-        f.write(('Number of observed junctions not in external annotation but '
-                 'in STAR annotation\t{0:,}\n').format(t))
-
-        t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)
-        f.write(('Number of observed junctions not in external annotation and '
-                 'not in STAR annotation\t{0:,}\n').format(t))
+    t = sum(annotDF.ix[annotDF.ext_annotated == False,'annotated'].values == 0)
+    stats.append(('Number of observed junctions not in external annotation and '
+                  'not in STAR annotation\t{0:,}\n').format(t))
   
-        t = len(set(annotDF[annotDF.novel_donor].donor))
-        f.write(('Number of novel donors\t{0:,}\n').format(t))
+    t = len(set(annotDF[annotDF.novel_donor].donor))
+    stats.append(('Number of novel donors\t{0:,}\n').format(t))
 
-        t = annotDF.novel_donor.sum()
-        f.write(('Number of novel junctions with novel '
-                 'donors\t{0:,}\n').format(t))
+    t = annotDF.novel_donor.sum()
+    stats.append(('Number of novel junctions with novel '
+                  'donors\t{0:,}\n').format(t))
 
-        t = len(set(annotDF[annotDF.novel_acceptor].acceptor))
-        f.write(('Number of novel acceptors\t{0:,}\n').format(t))
+    t = len(set(annotDF[annotDF.novel_acceptor].acceptor))
+    stats.append(('Number of novel acceptors\t{0:,}\n').format(t))
 
-        t = annotDF.novel_acceptor.sum()
-        f.write(('Number of novel junctions with novel '
-                 'acceptors\t{0:,}\n').format(t))
+    t = annotDF.novel_acceptor.sum()
+    stats.append(('Number of novel junctions with novel '
+                  'acceptors\t{0:,}\n').format(t))
 
-        t = (annotDF[annotDF.ext_annotated].shape[0] - 
-             sum(annotDF.novel_donor) - 
-             sum(annotDF.novel_acceptor))
-        f.write(('Number of novel junctions with new combination of donor and '
-                 'acceptor\t{0:,}\n').format(t))
-
-        f.close()
-   
-    return countDF, annotDF
+    t = (annotDF[annotDF.ext_annotated].shape[0] - 
+         sum(annotDF.novel_donor) - 
+         sum(annotDF.novel_acceptor))
+    stats.append(('Number of novel junctions with new combination of donor and '
+                  'acceptor\t{0:,}\n').format(t))
+    return countDF, annotDF, stats
 
 def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20, 
-                   define_sample_name=None, statsfile=None):
+                   define_sample_name=None):
     """Combine SJ.out.tab files from STAR by filtering based on coverage and
     comparing to an external annotation to discover novel junctions.
 
@@ -446,10 +430,6 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     define_sample_name : function
         A function mapping the SJ.out.tab filenames to sample names.
 
-    statsfile : string
-        File to write statistics to. Statistics are not output if a filename is
-        not provided.
-
     Returns
     -------
     countDF :  pandas.DataFrame
@@ -458,31 +438,28 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
 
     annotDF : pandas.DataFrame
         Annotation information for junctions that passed filtering criteria.
+
+    stats : list of strings
+        Human readable statistics.
     
     """
-    sj_outD = make_sj_out_dict(fns, define_sample_name=define_sample_name)
-    sj_outP, annotDF = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
-                                        statsfile=statsfile)
+    stats = []
+    sj_outD = _make_sj_out_dict(fns, define_sample_name=define_sample_name)
+    stats.append('Number of junctions in sj_out file per sample')
+    for k in sj_outD.keys():
+        stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
 
-    # I'll read in the statsfile and hold that information so I can combine into
-    # a final statsfile.
-    f = open(statsfile, 'r')
-    lines = f.readlines()
-    f.close()
-    
-    extDF = read_external_annotation(external_db)
-    countsDF, annotDF = filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, 
-                                                   statsfile=statsfile)
+    sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
+    stats.append('sj_out panel size\t{0}'.format(sj_outP.shape))
 
-    f = open(statsfile, 'r')
-    lines2 = f.readlines()
-    f.close()
+    extDF, ext_stats = read_external_annotation(external_db)
+    stats += ext_stats
 
-    f = open(statsfile, 'w')
-    f.write(''.join(lines + lines2))
-    f.close()
-
-    return countsDF, annotDF
+    countsDF, annotDF, filter_stats = filter_jxns_donor_acceptor(sj_outP, 
+                                                                 annotDF, 
+                                                                 extDF)
+    stats += filter_stats
+    return countsDF, annotDF, stats
 
 def _make_splice_targets_dict(df, feature, strand):
     """Make dict mapping each donor to the location of all acceptors it splices
