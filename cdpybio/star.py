@@ -398,7 +398,7 @@ def filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
     stats.append(('Number of novel junctions with novel '
                   'acceptors\t{0:,}').format(t))
 
-    t = (annotDF[annotDF.ext_annotated].shape[0] - 
+    t = (annotDF[annotDF.ext_annotated == False].shape[0] - 
          sum(annotDF.novel_donor) - 
          sum(annotDF.novel_acceptor))
     stats.append(('Number of novel junctions with new combination of donor and '
