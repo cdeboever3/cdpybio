@@ -432,7 +432,7 @@ class TestFindNovelDonorAcceptorDist:
         sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new_b',
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
-        c, a, s = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
         df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
 
         vals = \
