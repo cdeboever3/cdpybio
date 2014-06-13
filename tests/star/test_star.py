@@ -195,7 +195,7 @@ class TestMakeSJOutPanel:
         assert_panel_equal(p, p2)
 
 class TestFilterJxnsDonorAcceptor:
-    def test_filter_jxns_donor_acceptor(self):
+    def test_filter_jxns_donor_acceptor_pos(self):
         d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
         p, a = cpb.star.make_sj_out_panel(d)
@@ -218,6 +218,34 @@ class TestFilterJxnsDonorAcceptor:
                          index=[u'chr1:5-20:+', u'chr1:5-25:+',
                                 u'chr1:10-20:+'],
                          columns=[u'SJ.out.tab.nonew_a', u'SJ.out.tab.nonew_b'])
+
+        assert_frame_equal(a, a2)
+        assert_frame_equal(c, c2)
+    
+    def test_filter_jxns_donor_acceptor_neg(self):
+        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+                                       'SJ.out.tab.neg_nonew_b'])
+        p, a = cpb.star.make_sj_out_panel(d)
+        ext = cpb.star.read_external_annotation('ext.tsv')
+        c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        a = pd.DataFrame(
+            [['chr2', 5, 20, '-', 'GT/AG', True, True, 'chr2:5', 
+              'chr2:20', 'gene1', 'chr2:20:-', 'chr2:5:-', False, False], 
+             ['chr2', 5, 25, '-', 'CT/AC', True, True, 'chr2:5', 
+              'chr2:25', 'gene1', 'chr2:25:-', 'chr2:5:-', False, False], 
+             ['chr2', 10, 20, '-', 'CT/AC', True, True, 'chr2:10', 
+              'chr2:20', 'gene1', 'chr2:20:-', 'chr2:10:-', False, False]],
+            index=[u'chr2:5-20:-', u'chr2:5-25:-', u'chr2:10-20:-'],
+            columns=[u'chrom', u'start', u'end', 
+                     u'strand', u'intron_motif', u'annotated', 
+                     u'ext_annotated', u'chr:start', u'chr:end', 
+                     u'gene_id', u'donor', u'acceptor', u'novel_donor', 
+                     u'novel_acceptor'])
+        c = pd.DataFrame(array([[20,  0],[10, 10],[20, 20]]),
+                         index=[u'chr2:5-20:-', u'chr2:5-25:-',
+                                u'chr2:10-20:-'],
+                         columns=[u'SJ.out.tab.neg_nonew_a', 
+                                  u'SJ.out.tab.neg_nonew_b'])
 
         assert_frame_equal(a, a2)
         assert_frame_equal(c, c2)
