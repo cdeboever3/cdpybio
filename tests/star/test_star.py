@@ -292,11 +292,11 @@ class TestFilterJxnsDonorAcceptor:
         assert_frame_equal(c, c2)
 
     def test_filter_new_jxns_neg(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_new',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new',
                                        'SJ.out.tab.neg_nonew_a'])
-        p, a = cpb.star.make_sj_out_panel(d)
-        ext = cpb.star.read_external_annotation('ext.tsv')
-        c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
+        p, a = cpb.star._make_sj_out_panel(d)
+        ext, es = cpb.star.read_external_annotation('ext.tsv')
+        c2, a2, s2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
                 [['chr2', 2, 25, '-', 'GT/AG', False, False, 'chr2:2',
                   'chr2:25', 'gene2', 'chr2:25:-', 'chr2:2:-', False, False],

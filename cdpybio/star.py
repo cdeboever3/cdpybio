@@ -152,11 +152,7 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
         duplicated in the panel.
     
     """
-    sj_outD = copy.deepcopy(sj_outD)
     num_jxns = dict()
-    if statsfile:
-        for k in sj_outD.keys():
-            num_jxns[k] = sj_outD[k].shape[0]
     # set of all junctions
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
