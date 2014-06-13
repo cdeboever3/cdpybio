@@ -122,9 +122,10 @@ def _make_sj_out_dict(fns, define_sample_name=None):
         assert len(index) == len(set(index))
         df.index = index
         sj_outD[sample] = df
+
     return sj_outD
 
-def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
+def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
     """Filter junctions from many sj_out files and make panel
 
     Parameters
@@ -136,9 +137,6 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         If the unique read coverage of a junction summed over all samples is not
         greater than or equal to this value, the junction will not be included
         in the final output.
-
-    statsfile : filename str
-        If provided, some stats will be printed to this file
 
     Returns
     -------
@@ -164,7 +162,6 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
                   [ sj_outD[k].index for k in sj_outD.keys() ])
 
     jxn_keepS = set()
-    sj_outD = copy.deepcopy(sj_outD)
     for j in jxnS:
         if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
                  if j in sj_outD[k].index ]) >= total_jxn_cov_cutoff:
@@ -200,16 +197,6 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
 
-    if statsfile:
-        statsF = open(statsfile,'w')
-
-        statsF.write('Number of junctions in sj_out file per sample\n')
-        for k in num_jxns.keys():
-            statsF.write('{0}\t{1:,}\n'.format(k,num_jxns[k]))
-        statsF.write('\n')
-  
-        statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
-        statsF.close()
     return sj_outP, annotDF
 
 def read_external_annotation(fn, statsfile=None):
@@ -462,31 +449,24 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
 
     annotDF : pandas.DataFrame
         Annotation information for junctions that passed filtering criteria.
+
+    stats : list of strings
+        Human readable statistics.
     
     """
+    stats = []
     sj_outD = _make_sj_out_dict(fns, define_sample_name=define_sample_name)
-    sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
-                                        statsfile=statsfile)
+    stats.append('Number of junctions in sj_out file per sample')
+    for k in sj_outD.keys():
+        stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
 
-    # I'll read in the statsfile and hold that information so I can combine into
-    # a final statsfile.
-    f = open(statsfile, 'r')
-    lines = f.readlines()
-    f.close()
-    
+    sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
+    stats.append('sj_out panel size\t{0}'.format(sj_outP.shape))
+
     extDF = read_external_annotation(external_db)
     countsDF, annotDF = filter_jxns_donor_acceptor(sj_outP, annotDF, extDF, 
                                                    statsfile=statsfile)
-
-    f = open(statsfile, 'r')
-    lines2 = f.readlines()
-    f.close()
-
-    f = open(statsfile, 'w')
-    f.write(''.join(lines + lines2))
-    f.close()
-
-    return countsDF, annotDF
+    return countsDF, annotDF, stats
 
 def _make_splice_targets_dict(df, feature, strand):
     """Make dict mapping each donor to the location of all acceptors it splices
