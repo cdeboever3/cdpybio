@@ -155,32 +155,28 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         duplicated in the panel.
     
     """
-    import sys
-    sys.stdout.write('Starting deepcopy\n')
     sj_outD = copy.deepcopy(sj_outD)
     num_jxns = dict()
     if statsfile:
         for k in sj_outD.keys():
             num_jxns[k] = sj_outD[k].shape[0]
     # set of all junctions
-    sys.stdout.write('Starting jxn set\n')
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
 
-    sys.stdout.write('Starting jxn keep\n')
     jxn_keepS = set()
+    jxn_setsD = dict()
+    for k in sj_outD.keys():
+        jxn_setsD[k] = frozenset(sj_outD[k].index)
     for j in jxnS:
         if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
-                 if j in sj_outD[k].index ]) >= total_jxn_cov_cutoff:
+                 if j in jxn_setsD[k] ]) >= total_jxn_cov_cutoff:
             jxn_keepS.add(j)
 
-    sys.stdout.write('Starting jxn reduction\n')
     for k in sj_outD.keys():
         sj_outD[k] = sj_outD[k].ix[jxn_keepS]
 
-    sys.stdout.write('Making panel\n')
     sj_outP = pd.Panel(sj_outD)
-    sys.stdout.write('Filling NA\n')
     for col in ['unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang']:
         sj_outP.ix[:,:,col] = sj_outP.ix[:,:,col].fillna(0)
@@ -188,7 +184,6 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     # Some dataframes will be missing information like intron_motif etc. for 
     # junctions that were not observed in that sample. The info is somewhere in
     # the panel though so we can get it.
-    sys.stdout.write('Making annot\n')
     annotDF = reduce(pd.DataFrame.combine_first,
                      [ sj_outP.ix[item,:,ANNOTATION_COLS].dropna() for item in
                       sj_outP.items ])
@@ -197,11 +192,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     annotDF['annotated'] = annotDF['annotated'].astype(bool)
     # Sort annotation and panel
     annotDF = annotDF.sort(columns=['chrom', 'start', 'end'])
-    sys.stdout.write('Reindex panel\n')
     sj_outP = sj_outP.ix[:, annotDF.index, :]
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
-    sys.stdout.write('Donezo\n')
 
     if statsfile:
         statsF = open(statsfile,'w')
