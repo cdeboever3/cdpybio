@@ -154,6 +154,9 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         duplicated in the panel.
     
     """
+    num_jxns = dict()
+    for k in sj_outD.keys():
+        num_jxns[k] = sj_outD[k].shape[0]
     # Remove any junctions that don't have any uniquely mapped junction reads.
     # Even if a junction passes the cutoff in other samples, we are only
     # concerned with unique counts.
@@ -202,8 +205,8 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         statsF = open(statsfile,'w')
 
         statsF.write('Number of junctions in sj_out file per sample\n')
-        for k in sj_outD.keys():
-            statsF.write('{0}\t{1:,}\n'.format(k,sj_outD[k].shape[0]))
+        for k in num_jxns.keys():
+            statsF.write('{0}\t{1:,}\n'.format(k,num_jxns[k].shape[0]))
         statsF.write('\n')
   
         statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
