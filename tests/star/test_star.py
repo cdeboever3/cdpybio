@@ -79,7 +79,7 @@ class TestMisc:
 
 class TestMakeSJOutDict:
     def test_make_sj_out_dict_pos(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
         a = cpb.star.read_sj_out_tab('SJ.out.tab.nonew_a')
         a.index = a.apply(lambda x: cpb.star._sj_out_junction(x), axis=1)
@@ -89,7 +89,7 @@ class TestMakeSJOutDict:
         assert_frame_equal(b, d['SJ.out.tab.nonew_b'])
 
     def test_make_sj_out_dict_neg(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_nonew_b'])
         a = cpb.star.read_sj_out_tab('SJ.out.tab.neg_nonew_a')
         a.index = a.apply(lambda x: cpb.star._sj_out_junction(x), axis=1)
@@ -101,7 +101,7 @@ class TestMakeSJOutDict:
 class TestMakeSJOutPanel:
     def test_make_sj_out_panel_pos(self):
         ind = [u'chr1:5-20', u'chr1:5-25', u'chr1:10-20']
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
         df = d['SJ.out.tab.nonew_a'].ix[ind, cpb.star.COUNT_COLS]
         df2 = d['SJ.out.tab.nonew_b'].ix[ind, cpb.star.COUNT_COLS]
@@ -117,13 +117,13 @@ class TestMakeSJOutPanel:
                          columns=[u'chrom', u'start',
                                   u'end', u'strand', u'intron_motif',
                                   u'annotated'])
-        p2, a2 = cpb.star.make_sj_out_panel(d)
+        p2, a2 = cpb.star._make_sj_out_panel(d)
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
     def test_make_sj_out_panel_neg(self):
         ind = [u'chr2:5-20', u'chr2:5-25', u'chr2:10-20']
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_nonew_b'])
         df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
         df2 = d['SJ.out.tab.neg_nonew_b'].ix[ind, cpb.star.COUNT_COLS]
@@ -139,14 +139,14 @@ class TestMakeSJOutPanel:
                          columns=[u'chrom', u'start',
                                   u'end', u'strand', u'intron_motif',
                                   u'annotated'])
-        p2, a2 = cpb.star.make_sj_out_panel(d)
+        p2, a2 = cpb.star._make_sj_out_panel(d)
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
     def test_new_junctions_pos(self):
         ind = [u'chr1:2-25', u'chr1:3-25', u'chr1:5-20', u'chr1:5-30',
                u'chr1:10-20', u'chr1:30-40']
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.new'])
         df = d['SJ.out.tab.nonew_a'].ix[ind, cpb.star.COUNT_COLS]
         df = df.fillna(0)
@@ -167,14 +167,14 @@ class TestMakeSJOutPanel:
             columns=[u'chrom', u'start', u'end', u'strand',
                      u'intron_motif', u'annotated']
         )
-        p2, a2 = cpb.star.make_sj_out_panel(d)
+        p2, a2 = cpb.star._make_sj_out_panel(d)
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
     def test_new_junctions_neg(self):
         ind = [u'chr2:2-25', u'chr2:3-25', u'chr2:5-20', u'chr2:5-30',
                u'chr2:10-20', u'chr2:30-40']
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_new'])
         df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
         df = df.fillna(0)
@@ -195,15 +195,15 @@ class TestMakeSJOutPanel:
             columns=[u'chrom', u'start', u'end', u'strand',
                      u'intron_motif', u'annotated']
         )
-        p2, a2 = cpb.star.make_sj_out_panel(d)
+        p2, a2 = cpb.star._make_sj_out_panel(d)
         assert_frame_equal(a, a2)
         assert_panel_equal(p, p2)
 
 class TestFilterJxnsDonorAcceptor:
     def test_filter_jxns_donor_acceptor_pos(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.nonew_a',
                                        'SJ.out.tab.nonew_b'])
-        p, a = cpb.star.make_sj_out_panel(d)
+        p, a = cpb.star._make_sj_out_panel(d)
         ext = cpb.star.read_external_annotation('ext.tsv')
         c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
@@ -228,9 +228,9 @@ class TestFilterJxnsDonorAcceptor:
         assert_frame_equal(c, c2)
     
     def test_filter_jxns_donor_acceptor_neg(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
                                        'SJ.out.tab.neg_nonew_b'])
-        p, a = cpb.star.make_sj_out_panel(d)
+        p, a = cpb.star._make_sj_out_panel(d)
         ext = cpb.star.read_external_annotation('ext.tsv')
         c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
@@ -256,9 +256,9 @@ class TestFilterJxnsDonorAcceptor:
         assert_frame_equal(c, c2)
     
     def test_filter_new_jxns(self):
-        d = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                        'SJ.out.tab.nonew_a'])
-        p, a = cpb.star.make_sj_out_panel(d)
+        p, a = cpb.star._make_sj_out_panel(d)
         ext = cpb.star.read_external_annotation('ext.tsv')
         c2, a2 = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         a = pd.DataFrame(
@@ -323,9 +323,9 @@ class TestFindNovelDonorAcceptorDist:
         # contain the positions of all acceptors associated with this donor.
         d = cpb.star._make_splice_targets_dict(ext, feature, strand)
 
-        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
-        p, a = cpb.star.make_sj_out_panel(sjd)
+        p, a = cpb.star._make_sj_out_panel(sjd)
         c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         novel_feature = 'acceptor'
         a = a[(a.strand == strand) & (a.novel_acceptor)]
@@ -342,9 +342,9 @@ class TestFindNovelDonorAcceptorDist:
         # contain the positions of all donors associated with this acceptor.
         d = cpb.star._make_splice_targets_dict(ext, feature, strand)
 
-        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
-        p, a = cpb.star.make_sj_out_panel(sjd)
+        p, a = cpb.star._make_sj_out_panel(sjd)
         c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         novel_feature = 'donor'
         a = a[(a.strand == strand) & (a.novel_donor)]
@@ -355,9 +355,9 @@ class TestFindNovelDonorAcceptorDist:
 
     def test_find_novel_donor_acceptor_dist(self):
         ext = cpb.star.read_external_annotation('ext.tsv')
-        sjd = cpb.star.make_sj_out_dict(['SJ.out.tab.new',
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.new',
                                          'SJ.out.tab.nonew_a'])
-        p, a = cpb.star.make_sj_out_panel(sjd)
+        p, a = cpb.star._make_sj_out_panel(sjd)
         c, a = cpb.star.filter_jxns_donor_acceptor(p, a, ext)
         df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
 

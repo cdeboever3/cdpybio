@@ -83,10 +83,9 @@ def read_sj_out_tab(filename):
     # See https://groups.google.com/d/msg/rna-star/B0Y4oH8ZSOY/NO4OJbbUU4cJ for
     # definition of strand in SJout files.
     sj = sj.sort(columns=['chrom', 'start', 'end'])
-
     return sj
 
-def make_sj_out_dict(fns, define_sample_name=None):
+def _make_sj_out_dict(fns, define_sample_name=None):
     """Read multiple sj_outs, return dict with keys as sample names and values
     as sj_out dataframes
 
@@ -125,7 +124,7 @@ def make_sj_out_dict(fns, define_sample_name=None):
         sj_outD[sample] = df
     return sj_outD
 
-def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
+def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
     """Filter junctions from many sj_out files and make panel
 
     Parameters
@@ -465,8 +464,8 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
         Annotation information for junctions that passed filtering criteria.
     
     """
-    sj_outD = make_sj_out_dict(fns, define_sample_name=define_sample_name)
-    sj_outP, annotDF = make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
+    sj_outD = _make_sj_out_dict(fns, define_sample_name=define_sample_name)
+    sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff, 
                                         statsfile=statsfile)
 
     # I'll read in the statsfile and hold that information so I can combine into
