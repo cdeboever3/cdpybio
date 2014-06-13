@@ -112,14 +112,15 @@ def make_sj_out_dict(fns, define_sample_name=None):
     else:
         assert len(set([ define_sample_name(x) for x in fns ])) == len(fns)
     sj_outD = dict()
-    for k in sj_outD.keys():
-        df = sj_outD[k]
-        sj_outD[k] = df[df.unique_junction_reads > 0]
 
     for fn in fns:
         sample = define_sample_name(fn)
         df = read_sj_out_tab(fn)
-        index = df.apply(lambda x: _sj_out_junction(x), axis=1)
+        # Remove any junctions that don't have any uniquely mapped junction
+        # reads.  Even if a junction passes the cutoff in other samples, we are
+        # only concerned with unique counts.
+        df = df[df.unique_junction_reads > 0]
+        index = df.chrom + ':' + df.start.astype(str) + '-' +  df.end.astype(str)
         assert len(index) == len(set(index))
         df.index = index
         sj_outD[sample] = df
@@ -154,12 +155,10 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         duplicated in the panel.
     
     """
+    sj_outD = copy.deepcopy(sj_outD)
     num_jxns = dict()
     for k in sj_outD.keys():
         num_jxns[k] = sj_outD[k].shape[0]
-    # Remove any junctions that don't have any uniquely mapped junction reads.
-    # Even if a junction passes the cutoff in other samples, we are only
-    # concerned with unique counts.
     # set of all junctions
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
