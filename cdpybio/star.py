@@ -155,50 +155,53 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
         duplicated in the panel.
     
     """
+    import sys
+    sys.stdout.write('Starting deepcopy\n')
     sj_outD = copy.deepcopy(sj_outD)
     num_jxns = dict()
-    for k in sj_outD.keys():
-        num_jxns[k] = sj_outD[k].shape[0]
+    if statsfile:
+        for k in sj_outD.keys():
+            num_jxns[k] = sj_outD[k].shape[0]
     # set of all junctions
+    sys.stdout.write('Starting jxn set\n')
     jxnS = reduce(lambda x,y: set(x) | set(y),
                   [ sj_outD[k].index for k in sj_outD.keys() ])
 
+    sys.stdout.write('Starting jxn keep\n')
     jxn_keepS = set()
-    sj_outD = copy.deepcopy(sj_outD)
     for j in jxnS:
         if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
                  if j in sj_outD[k].index ]) >= total_jxn_cov_cutoff:
             jxn_keepS.add(j)
 
+    sys.stdout.write('Starting jxn reduction\n')
     for k in sj_outD.keys():
         sj_outD[k] = sj_outD[k].ix[jxn_keepS]
 
+    sys.stdout.write('Making panel\n')
     sj_outP = pd.Panel(sj_outD)
+    sys.stdout.write('Filling NA\n')
     for col in ['unique_junction_reads', 'multimap_junction_reads',
                 'max_overhang']:
         sj_outP.ix[:,:,col] = sj_outP.ix[:,:,col].fillna(0)
 
     # Some dataframes will be missing information like intron_motif etc. for 
-    # junctions that were not observed in that sample. We'll add that info.
+    # junctions that were not observed in that sample. The info is somewhere in
+    # the panel though so we can get it.
+    sys.stdout.write('Making annot\n')
     annotDF = reduce(pd.DataFrame.combine_first,
                      [ sj_outP.ix[item,:,ANNOTATION_COLS].dropna() for item in
                       sj_outP.items ])
-    for col in ANNOTATION_COLS:
-        sj_outP.ix[:,annotDF.index,col] = [ annotDF[col] for i in
-                                               range(sj_outP.shape[0]) ]
-    
-    # All of the splice junction annotation information is duplicated in each
-    # dataframe in the panel, so we'll make a single dataframe holding that
-    # information.
-    annotDF = sj_outP.ix[0,:,ANNOTATION_COLS]
     annotDF['start'] = annotDF['start'].astype(int)
     annotDF['end'] = annotDF['end'].astype(int)
     annotDF['annotated'] = annotDF['annotated'].astype(bool)
     # Sort annotation and panel
     annotDF = annotDF.sort(columns=['chrom', 'start', 'end'])
+    sys.stdout.write('Reindex panel\n')
     sj_outP = sj_outP.ix[:, annotDF.index, :]
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
+    sys.stdout.write('Donezo\n')
 
     if statsfile:
         statsF = open(statsfile,'w')
