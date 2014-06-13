@@ -206,7 +206,7 @@ def make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20, statsfile=None):
 
         statsF.write('Number of junctions in sj_out file per sample\n')
         for k in num_jxns.keys():
-            statsF.write('{0}\t{1:,}\n'.format(k,num_jxns[k].shape[0]))
+            statsF.write('{0}\t{1:,}\n'.format(k,num_jxns[k]))
         statsF.write('\n')
   
         statsF.write('sj_out panel size\t{0}\n\n'.format(sj_outP.shape))
