@@ -1,4 +1,5 @@
 from copy import deepcopy
+
 from numpy import array
 from numpy import nan
 import numpy as np
@@ -8,6 +9,9 @@ from pandas.util.testing import assert_panel_equal
 import pytest
 
 import cdpybio as cpb
+
+# Note: I use pos and neg in this file to refer to the plus and minus strands
+# respectively.
 
 # TODO: I might want to include some more tests. I haven't tested whether the
 # stats in the statsfiles are correct. I might want to check to make sure the
@@ -175,14 +179,14 @@ class TestMakeSJOutPanel:
         ind = [u'chr2:2-25', u'chr2:3-25', u'chr2:5-20', u'chr2:5-30',
                u'chr2:10-20', u'chr2:30-40']
         d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_nonew_a',
-                                       'SJ.out.tab.neg_new'])
+                                       'SJ.out.tab.neg_new_a'])
         df = d['SJ.out.tab.neg_nonew_a'].ix[ind, cpb.star.COUNT_COLS]
         df = df.fillna(0)
-        df2 = d['SJ.out.tab.neg_new'].ix[ind, cpb.star.COUNT_COLS]
+        df2 = d['SJ.out.tab.neg_new_a'].ix[ind, cpb.star.COUNT_COLS]
         df2 = df2.fillna(0)
 
         p = pd.Panel({'SJ.out.tab.neg_nonew_a':df,
-                      'SJ.out.tab.neg_new':df2})
+                      'SJ.out.tab.neg_new_a':df2})
         p = p.astype(int)
         a = pd.DataFrame(
             [['chr2', 2, 25, '-', 'GT/AG', False],
@@ -292,7 +296,7 @@ class TestFilterJxnsDonorAcceptor:
         assert_frame_equal(c, c2)
 
     def test_filter_new_jxns_neg(self):
-        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new',
+        d = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new_a',
                                        'SJ.out.tab.neg_nonew_a'])
         p, a = cpb.star._make_sj_out_panel(d)
         ext, es = cpb.star.read_external_annotation('ext.tsv')
@@ -322,14 +326,14 @@ class TestFilterJxnsDonorAcceptor:
                           [ 0, 20]],
                          index=[u'chr2:2-25:-', u'chr2:3-25:-', u'chr2:5-20:-',
                                 u'chr2:5-30:-', u'chr2:10-20:-'],
-                         columns=[u'SJ.out.tab.neg_new', 
+                         columns=[u'SJ.out.tab.neg_new_a', 
                                   u'SJ.out.tab.neg_nonew_a'])
 
         assert_frame_equal(a, a2)
         assert_frame_equal(c, c2)
 
 class TestFindNovelDonorAcceptorDist:
-    def test_make_splice_targets_dict_donor(self):
+    def test_make_splice_targets_dict_donor_pos(self):
         df, stats = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'donor'
@@ -341,7 +345,18 @@ class TestFindNovelDonorAcceptorDist:
         for k in d.keys():
             assert (d[k] == d2[k]).all()
 
-    def test_make_splice_targets_dict_acceptor(self):
+    def test_make_splice_targets_dict_donor_neg(self):
+        df, stats = cpb.star.read_external_annotation('ext.tsv')
+        strand = '-'
+        feature = 'donor'
+        d = cpb.star._make_splice_targets_dict(df, feature, strand)
+        d2 = {'chr2:20:-': array([2, 5, 10]),
+              'chr2:25:-': array([5])}
+        assert d.keys() == d2.keys()
+        for k in d.keys():
+            assert (d[k] == d2[k]).all()
+
+    def test_make_splice_targets_dict_acceptor_pos(self):
         df, stats = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'acceptor'
@@ -352,7 +367,19 @@ class TestFindNovelDonorAcceptorDist:
         for k in d.keys():
             assert (d[k] == d2[k]).all()
 
-    def test_dist_to_annot_donor_acceptor(self):
+    def test_make_splice_targets_dict_acceptor_neg(self):
+        df, stats = cpb.star.read_external_annotation('ext.tsv')
+        strand = '-'
+        feature = 'acceptor'
+        d = cpb.star._make_splice_targets_dict(df, feature, strand)
+        d2 = {'chr2:2:-': array([20]), 
+              'chr2:5:-': array([20, 25]),
+              'chr2:10:-': array([20])}
+        assert d.keys() == d2.keys()
+        for k in d.keys():
+            assert (d[k] == d2[k]).all()
+
+    def test_dist_to_annot_donor_acceptor_pos(self):
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'donor'
@@ -369,9 +396,28 @@ class TestFindNovelDonorAcceptorDist:
         up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
                                                           novel_feature)
         assert up == [5]
-        assert down == [np.nan]
+        assert down == [nan]
 
-    def test_dist_to_annot_donor_acceptor(self):
+    def test_dist_to_annot_donor_acceptor_neg(self):
+        ext, stats = cpb.star.read_external_annotation('ext.tsv')
+        strand = '-'
+        feature = 'donor'
+        # d is a dict whose keys are donors and whose values are sets that
+        # contain the positions of all acceptors associated with this donor.
+        d = cpb.star._make_splice_targets_dict(ext, feature, strand)
+
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new_a',
+                                         'SJ.out.tab.neg_nonew_a'])
+        p, a = cpb.star._make_sj_out_panel(sjd)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
+        novel_feature = 'acceptor'
+        a = a[(a.strand == strand) & (a.novel_acceptor)]
+        up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
+                                                          novel_feature)
+        assert up == [2]
+        assert down == [nan]
+
+    def test_dist_to_annot_donor_acceptor_pos(self):
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
         strand = '+'
         feature = 'acceptor'
@@ -389,6 +435,25 @@ class TestFindNovelDonorAcceptorDist:
                                                           novel_feature)
         assert up == [np.nan]
         assert down == [2]
+
+    def test_dist_to_annot_donor_acceptor_neg(self):
+        ext, stats = cpb.star.read_external_annotation('ext.tsv')
+        strand = '-'
+        feature = 'acceptor'
+        # d is a dict whose keys are acceptors and whose values are sets that
+        # contain the positions of all donors associated with this acceptor.
+        d = cpb.star._make_splice_targets_dict(ext, feature, strand)
+
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new_a',
+                                         'SJ.out.tab.neg_nonew_a'])
+        p, a = cpb.star._make_sj_out_panel(sjd)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
+        novel_feature = 'donor' 
+        a = a[(a.strand == strand) & (a.novel_donor)]
+        up, down = cpb.star._dist_to_annot_donor_acceptor(a, d, strand, 
+                                                          novel_feature)
+        assert up == [np.nan]
+        assert down == [5]
 
     def test_find_novel_donor_acceptor_dist_pos_a(self):
         ext, stats = cpb.star.read_external_annotation('ext.tsv')
@@ -416,6 +481,43 @@ class TestFindNovelDonorAcceptorDist:
                            index=[u'chr1:2-25:+', u'chr1:3-25:+',
                                   u'chr1:5-20:+', u'chr1:5-30:+',
                                   u'chr1:10-20:+'],
+                           columns=[u'chrom', u'start', u'end', u'strand',
+                                    u'intron_motif', u'annotated',
+                                    u'ext_annotated', u'chrom:start',
+                                    u'chrom:end', u'gene_id', u'donor',
+                                    u'acceptor', u'novel_donor',
+                                    u'novel_acceptor', u'upstream_donor_dist',
+                                    u'downstream_donor_dist',
+                                    u'upstream_acceptor_dist',
+                                    u'downstream_acceptor_dist'])
+        assert_frame_equal(df, df2)
+    
+    def test_find_novel_donor_acceptor_dist_neg_a(self):
+        ext, stats = cpb.star.read_external_annotation('ext.tsv')
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new_a',
+                                         'SJ.out.tab.neg_nonew_a'])
+        p, a = cpb.star._make_sj_out_panel(sjd)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
+        df = cpb.star._find_novel_donor_acceptor_dist(a, ext)
+
+        df2 = pd.DataFrame([['chr2', 2, 25, '-', 'GT/AG', False, False,
+                             'chr2:2', 'chr2:25', 'gene2', 'chr2:25:-',
+                             'chr2:2:-', False, False, nan, nan, nan, nan],
+                            ['chr2', 3, 25, '-', 'CT/AC', False, False,
+                             'chr2:3', 'chr2:25', 'gene2', 'chr2:25:-',
+                             'chr2:3:-', False, True, nan, nan, 2.0, nan],
+                            ['chr2', 5, 20, '-', 'GT/AG', True, True, 'chr2:5',
+                             'chr2:20', 'gene2', 'chr2:20:-', 'chr2:5:-', False,
+                             False, nan, nan, nan, nan], 
+                            ['chr2', 5, 30, '-', 'GT/AG', False, False,
+                             'chr2:5', 'chr2:30', 'gene2', 'chr2:30:-',
+                             'chr2:5:-', True, False, nan, 5.0, nan, nan],
+                            ['chr2', 10, 20, '-', 'CT/AC', True, True,
+                             'chr2:10', 'chr2:20', 'gene2', 'chr2:20:-',
+                             'chr2:10:-', False, False, nan, nan, nan, nan]],
+                           index=[u'chr2:2-25:-', u'chr2:3-25:-',
+                                  u'chr2:5-20:-', u'chr2:5-30:-',
+                                  u'chr2:10-20:-'],
                            columns=[u'chrom', u'start', u'end', u'strand',
                                     u'intron_motif', u'annotated',
                                     u'ext_annotated', u'chrom:start',
@@ -464,4 +566,42 @@ class TestFindNovelDonorAcceptorDist:
                u'chr1:5-30:+', u'chr1:10-20:+']
 
         df2 = pd.DataFrame(vals, index=ind, columns=cols)
+        assert_frame_equal(df, df2)
+    
+    def test_find_novel_donor_acceptor_dist_neg_b(self):
+        ext, stats = cpb.star.read_external_annotation('ext.tsv')
+        sjd = cpb.star._make_sj_out_dict(['SJ.out.tab.neg_new_b',
+                                         'SJ.out.tab.neg_nonew_a'])
+        p, a = cpb.star._make_sj_out_panel(sjd)
+        c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
+        df = cpb.star._find_novel_donor_acceptor_dist(a, ext)
+
+        vals = [['chr2', 2, 25, '-', 'GT/AG', False, False, 'chr2:2', 'chr2:25',
+                 'gene2', 'chr2:25:-', 'chr2:2:-', False, False, nan, nan, nan,
+                 nan],
+                ['chr2', 3, 20, '-', 'CT/AC', False, False, 'chr2:3', 'chr2:20',
+                 'gene2', 'chr2:20:-', 'chr2:3:-', False, True, nan, nan, 2.0,
+                 1.0],
+                ['chr2', 5, 20, '-', 'GT/AG', True, True, 'chr2:5', 'chr2:20',
+                 'gene2', 'chr2:20:-', 'chr2:5:-', False, False, nan, nan, nan,
+                 nan],
+                ['chr2', 5, 22, '-', 'GT/AG', False, False, 'chr2:5', 'chr2:22',
+                 'gene2', 'chr2:22:-', 'chr2:5:-', True, False, 3.0, 2.0, nan,
+                 nan],
+                ['chr2', 5, 30, '-', 'GT/AG', False, False, 'chr2:5', 'chr2:30',
+                 'gene2', 'chr2:30:-', 'chr2:5:-', True, False, nan, 5.0, nan,
+                 nan],
+                ['chr2', 10, 20, '-', 'CT/AC', True, True, 'chr2:10', 'chr2:20',
+                 'gene2', 'chr2:20:-', 'chr2:10:-', False, False, nan, nan, nan,
+                 nan]]
+        cols = [u'chrom', u'start', u'end', u'strand', u'intron_motif',
+                u'annotated', u'ext_annotated', u'chrom:start', u'chrom:end',
+                u'gene_id', u'donor', u'acceptor', u'novel_donor',
+                u'novel_acceptor', u'upstream_donor_dist',
+                u'downstream_donor_dist', u'upstream_acceptor_dist',
+                u'downstream_acceptor_dist']
+        ind = [u'chr2:2-25:-', u'chr2:3-20:-', u'chr2:5-20:-', u'chr2:5-22:-',
+               u'chr2:5-30:-', u'chr2:10-20:-']
+        df2 = pd.DataFrame(vals, index=ind, columns=cols)
+
         assert_frame_equal(df, df2)
