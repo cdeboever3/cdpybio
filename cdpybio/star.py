@@ -474,7 +474,7 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
                                                                   annotDF, 
                                                                   extDF)
 
-    annotDF = _find_novel_donor_acceptor_dist(annotDF, ext)
+    annotDF = _find_novel_donor_acceptor_dist(annotDF, extDF)
 
     stats += filter_stats
     return countsDF, annotDF, stats
