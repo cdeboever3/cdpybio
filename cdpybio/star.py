@@ -473,6 +473,9 @@ def combine_sj_out(fns, external_db, total_jxn_cov_cutoff=20,
     countsDF, annotDF, filter_stats = _filter_jxns_donor_acceptor(sj_outP, 
                                                                   annotDF, 
                                                                   extDF)
+
+    annotDF = cpb.star._find_novel_donor_acceptor_dist(annotDF, ext)
+
     stats += filter_stats
     return countsDF, annotDF, stats
 
@@ -522,7 +525,7 @@ def _make_splice_targets_dict(df, feature, strand):
         d[k].sort()
     return d
 
-def find_novel_donor_acceptor_dist(annot, ext):
+def _find_novel_donor_acceptor_dist(annot, ext):
     """Find nearest annotated upstream/downstream donor/acceptor for novel
     donor/acceptors 
 

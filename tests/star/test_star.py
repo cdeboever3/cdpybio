@@ -396,7 +396,7 @@ class TestFindNovelDonorAcceptorDist:
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
         c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
-        df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
+        df = cpb.star._find_novel_donor_acceptor_dist(a, ext)
 
         df2 = pd.DataFrame([['chr1', 2, 25, '+', 'GT/AG', False, False,
                              'chr1:2', 'chr1:25', 'gene1', 'chr1:2:+',
@@ -433,7 +433,7 @@ class TestFindNovelDonorAcceptorDist:
                                          'SJ.out.tab.nonew_a'])
         p, a = cpb.star._make_sj_out_panel(sjd)
         c, a, s = cpb.star._filter_jxns_donor_acceptor(p, a, ext)
-        df = cpb.star.find_novel_donor_acceptor_dist(a, ext)
+        df = cpb.star._find_novel_donor_acceptor_dist(a, ext)
 
         vals = \
             [['chr1', 2, 25, '+', 'GT/AG', False, False, 'chr1:2', 'chr1:25',
