@@ -736,7 +736,8 @@ def make_logs_df(fns, define_sample_name=None):
     """
     dfs = []
     for fn in fns:
-        dfs.append(_read_log(fn))
+        dfs.append(_read_log(fn, 
+                             define_sample_name=define_sample_name))
     df = pd.concat(dfs,axis=1)
     df = df.T
     for label in [
