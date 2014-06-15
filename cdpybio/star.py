@@ -684,3 +684,84 @@ def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
             else:
                 upstream_dists.append(np.abs(neg).min())
     return upstream_dists, downstream_dists
+
+def _read_log(fn, define_sample_name=None):
+    """Read STAR Log.final.out file
+
+    Parameters
+    ----------
+    fn : string
+        Path to Log.final.out file.
+
+    define_sample_name : function that takes string as input
+        Function mapping filename to sample name. For instance, you may have the
+        sample name in the path and use a regex to extract it.  The sample names
+        will be used as the column names. If this is not provided, the columns
+        will be named as the input files.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        DataFrame with info from log file.
+
+    """
+    if define_sample_name == None:
+        define_sample_name = lambda x: x
+    df = pd.read_table(fn, '|', header=None).dropna()
+    df.index = df.ix[:,0].apply(lambda x: x.strip())
+    df = pd.DataFrame(df.ix[:,1].apply(lambda x: x.strip()),
+                      columns=[define_sample_name(fn)])
+    return df
+
+def make_logs_df(fns, define_sample_name=None):
+    """Make pandas DataFrame from multiple STAR Log.final.out files
+
+    Parameters
+    ----------
+    fn : string
+        Path to Log.final.out file.
+
+    define_sample_name : function that takes string as input
+        Function mapping filename to sample name. For instance, you may have the
+        sample name in the path and use a regex to extract it.  The sample names
+        will be used as the column names. If this is not provided, the columns
+        will be named as the input files.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        DataFrame with info from log file.
+
+    """
+    dfs = []
+    for fn in fns:
+        dfs.append(_read_log(fn))
+    df = pd.concat(dfs,axis=1)
+    df = df.T
+    for label in [
+            'Mapping speed, Million of reads per hour',
+            'Number of input reads',
+            'Average input read length',
+            'Uniquely mapped reads number',
+            'Average mapped length',
+            'Number of splices: Total',
+            'Number of splices: GT/AG',
+            'Number of splices: GC/AG',
+            'Number of splices: AT/AC',
+            'Number of splices: Non-canonical',
+            'Number of reads mapped to multiple loci',
+            'Number of reads mapped to too many loci']:
+        df[label] = df[label].astype(float)
+
+    for label in [
+        'Uniquely mapped reads %',
+        'Mismatch rate per base, %',
+        'Deletion rate per base',
+        'Insertion rate per base',
+        '% of reads mapped to multiple loci',
+        '% of reads mapped to too many loci',
+        '% of reads unmapped: too many mismatches',
+        '% of reads unmapped: too short',
+        '% of reads unmapped: other']:
+        df[label] = df[label].apply(lambda x: x.strip('%')).astype(float)
+    return df
