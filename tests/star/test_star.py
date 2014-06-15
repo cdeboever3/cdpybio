@@ -81,6 +81,69 @@ class TestMisc:
         df2 = cpb.star.read_sj_out_tab('SJ.out.tab.unk_nonew_a')
         assert_frame_equal(df, df2)
 
+    def test_read_log(self):
+        ind = [u'Started job on', u'Started mapping on', u'Finished on', 
+               u'Mapping speed, Million of reads per hour', 
+               u'Number of input reads', u'Average input read length', 
+               u'Uniquely mapped reads number', u'Uniquely mapped reads %', 
+               u'Average mapped length', u'Number of splices: Total', 
+               u'Number of splices: Annotated (sjdb)', 
+               u'Number of splices: GT/AG', u'Number of splices: GC/AG', 
+               u'Number of splices: AT/AC', u'Number of splices: Non-canonical',
+               u'Mismatch rate per base, %', u'Deletion rate per base', 
+               u'Deletion average length', u'Insertion rate per base', 
+               u'Insertion average length', 
+               u'Number of reads mapped to multiple loci', 
+               u'% of reads mapped to multiple loci', 
+               u'Number of reads mapped to too many loci', 
+               u'% of reads mapped to too many loci', 
+               u'% of reads unmapped: too many mismatches', 
+               u'% of reads unmapped: too short', u'% of reads unmapped: other']
+        cols = [u'Log.final.out.a']
+        vals= [['Mar 06 17:38:15'], ['Mar 06 17:53:05'], ['Mar 06 20:13:16'],
+               ['62.51'], ['146042756'], ['135'], ['103778365'], ['71.06%'],
+               ['119.74'], ['37420413'], ['35853326'], ['36980144'], ['351650'],
+               ['17910'], ['70709'], ['1.13%'], ['0.01%'], ['1.51'], ['0.01%'],
+               ['1.29'], ['42173939'], ['28.88%'], ['536'], ['0.00%'],
+               ['0.00%'], ['0.00%'], ['0.06%']]
+        df = pd.DataFrame(vals, index=ind, columns=cols)
+        df2 = cpb.star._read_log('Log.final.out.a')
+        assert_frame_equal(df, df2)
+
+    def test_make_logs_df(self):
+        cols = [u'Started job on', u'Started mapping on', u'Finished on', 
+                u'Mapping speed, Million of reads per hour', 
+                u'Number of input reads', u'Average input read length', 
+                u'Uniquely mapped reads number', u'Uniquely mapped reads %', 
+                u'Average mapped length', u'Number of splices: Total', 
+                u'Number of splices: Annotated (sjdb)', 
+                u'Number of splices: GT/AG', u'Number of splices: GC/AG', 
+                u'Number of splices: AT/AC', u'Number of splices: Non-canonical',
+                u'Mismatch rate per base, %', u'Deletion rate per base', 
+                u'Deletion average length', u'Insertion rate per base', 
+                u'Insertion average length', 
+                u'Number of reads mapped to multiple loci', 
+                u'% of reads mapped to multiple loci', 
+                u'Number of reads mapped to too many loci', 
+                u'% of reads mapped to too many loci', 
+                u'% of reads unmapped: too many mismatches', 
+                u'% of reads unmapped: too short', u'% of reads unmapped: other']
+        ind = [u'Log.final.out.a', u'Log.final.out.b']
+        vals = [['Mar 06 17:38:15', 'Mar 06 17:53:05', 'Mar 06 20:13:16', 62.51,
+                 146042756.0, 135.0, 103778365.0, 71.06, 119.74, 37420413.0,
+                 '35853326', 36980144.0, 351650.0, 17910.0, 70709.0, 1.13, 0.01,
+                 '1.51', 0.01, '1.29', 42173939.0, 28.88, 536.0, 0.0, 0.0, 0.0,
+                 0.06], 
+                ['Mar 04 19:39:13', 'Mar 04 19:49:11', 'Mar 04 21:13:01', 84.92,
+                 118648978.0, 136.0, 105411961.0, 88.84, 132.3, 30047584.0,
+                 '29100214', 29616122.0, 351932.0, 21726.0, 57804.0, 0.69, 0.01,
+                 '1.51', 0.01, '1.25', 13141675.0, 11.08, 951.0, 0.0, 0.0, 0.0,
+                 0.08]]
+        df = pd.DataFrame(vals, index=ind, columns=cols)
+        df2 = cpb.star.make_logs_df(['Log.final.out.a',
+                                     'Log.final.out.b'])
+        assert_frame_equal(df, df2)
+
 class TestMakeSJOutDict:
     def test_make_sj_out_dict_pos(self):
         d = cpb.star._make_sj_out_dict(['SJ.out.tab.nonew_a',

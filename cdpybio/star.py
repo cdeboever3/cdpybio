@@ -709,8 +709,9 @@ def _read_log(fn, define_sample_name=None):
         define_sample_name = lambda x: x
     df = pd.read_table(fn, '|', header=None).dropna()
     df.index = df.ix[:,0].apply(lambda x: x.strip())
-    df = pd.DataFrame(df.ix[:,1].apply(lambda x: x.strip()),
-                      columns=[define_sample_name(fn)])
+    df = pd.DataFrame(df.ix[:,1].apply(lambda x: x.strip()))
+    df.index.name = None
+    df.columns = [define_sample_name(fn)]
     return df
 
 def make_logs_df(fns, define_sample_name=None):
