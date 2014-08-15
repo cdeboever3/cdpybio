@@ -291,7 +291,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def __init__(self, analysis_ids, tumor_normal, bed, java, mutect, fasta,
                  dbsnp, cosmic, external_server='flc.ucsd.edu',
                  variant_outdir='.', outdir='.', threads=10, sleeptime=10,
-                 bam_fnc=None, engine_fnc=self.variant_calling_worker):
+                 bam_fnc=None, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -341,7 +341,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         analysis_ids = self.sort_ids(analysis_ids)
         ReadsFromIntervalsEngine.__init__(analysis_ids, bed, outdir=outdir,
                                           threads=threads, sleeptime=sleeptime,
-                                          engine_fnc=engine_fnc)
+                                          engine_fnc=self.variant_calling_worker
+                                         )
         # Paths to various files needed for mutect.
         self.mutect = mutect
         self.fasta = fasta
