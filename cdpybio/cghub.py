@@ -150,10 +150,11 @@ class ReadsFromIntervalsEngine:
     # could be subclassed for more complex analyses.  Subclassing will mainly be
     # accomplished using the bam_fnc parameter which allows execution of an
     # arbitrary function on each bam file that contains the reads from the
-    # intervals as the bam files are created. 
+    # intervals as the bam files are created and the engine_fnc parameter which
+    # executes an arbitrary function every time the engine cycles.
 
     def __init__(self, analysis_ids, bed, outdir='.', threads=10,
-                 sleeptime=10, bam_fnc=None):
+                 sleeptime=10, bam_fnc=None, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -174,6 +175,9 @@ class ReadsFromIntervalsEngine:
             made. For instance, you could make a function that uses the bam file
             path as input for variant calling, etc. This function is called as
             soon as the engine knows that the bam file is created.
+        engine_fnc : function
+            Function to execute every time the engine cycles (aka every
+            sleeptime number of seconds while the engine is running). 
 
         """
         import threading
@@ -184,12 +188,15 @@ class ReadsFromIntervalsEngine:
         self.outdir = outdir
         self.sleeptime = sleeptime
         self.bam_fnc = bam_fnc
+        self.engine_fnc = engine_fnc
         # Intervals in the format 1:20-200 etc. as a list.
         self.intervals = bed_to_samtools_intervals(self.bed)
-        # Analysis_ids that the engine has started getting reads for.
-        self.started = set()
-        # Analysis_ids that the engine has not started getting reads for.
-        self.remaining = set(self.analysis_ids)
+        # analysis_ids that the engine has started getting reads for.
+        self.started = []
+        # analysis_ids that the engine has not started getting reads for.
+        self.remaining = self.analysis_ids
+        # analysis_ids that have finished.
+        self.finished = []
         self.current_procs = []
         self.old_procs = []
         # Paths to bam files with reads.
@@ -236,13 +243,14 @@ class ReadsFromIntervalsEngine:
 
     def start_engine(self):
         import threading
-        t = threading.Thread(target=self.worker)
+        t = threading.Thread(target=self.read_interval_worker)
         self.engine_thread = t
         t.start()
 
-    def worker(self):
+    def read_interval_worker(self):
         import multiprocessing
         import sys
+        import types
 
         self.queue = multiprocessing.Queue()
         while not self.running.isSet():
@@ -251,6 +259,8 @@ class ReadsFromIntervalsEngine:
             else:
                 self.remove_finished_procs()
                 self.add_procs()
+                if type(self.engine_fnc) == types.FunctionType:
+                    self.engine_fnc()
             self.running.wait(self.sleeptime)
         # If we get here, we aren't running any more. Wait for processes to
         # finish, then exit.
@@ -260,30 +270,161 @@ class ReadsFromIntervalsEngine:
             time.sleep(self.sleeptime)
         sys.stderr.write('Jobs concluded, engine stopped.\n')
 
-class VariantCallingEngine(ReadsFromIntervalsEngine):
-    def __init__(self, analysis_ids, bed, outdir='.', threads=10,
-                 sleeptime=10, bam_fnc=None):
+class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
+    # This class extends the ReadsFromIntervalsEngine to both get the bam file
+    # and call variants. However, this class is a little weird because it is
+    # specifically set up to work on the Frazer lab cluster system. Here, the
+    # variant calling is performed on a different server (flc) that has access
+    # to the same filesystem as the server running the engine (hence the FLC
+    # part of the name). This is specific to my use case but could easily
+    # modified for other use cases.
+    
+    # TODO
+    # Some way to watch for jobs that finish. Maybe I can just watch to see when
+    # the output file is copied somewhere, then process it further? Or just not
+    # worry after I submit? It would be nice to know even if just for the
+    # purpose of monitoring progress. I would almost need another engine for
+    # this, and that might be fine. I can have a monitor engine that is separate
+    # of the GTFuse engine.  Something to keep track of which analysis_ids and
+    # which intervals have been completed.
+
+    def __init__(self, analysis_ids, tumor_normal, bed, java, mutect, fasta,
+                 dbsnp, cosmic, external_server='flc.ucsd.edu',
+                 variant_outdir='.', outdir='.', threads=10, sleeptime=10,
+                 bam_fnc=None, engine_fnc=self.variant_calling_worker):
+        """
+        Initialize engine for obtaining reads for given intervals/IDs
+        
+        Parameters
+        ----------
+        analysis_ids : list
+            List of TCGA analysis IDs.
+        tumor_normal : dict
+            Dict mapping whose keys are tumor analysis_ids and whose values are
+            the corresponding analysis_id for the normal.
+        bed : path
+            Bed file with intervals.
+        java : path
+            Path to java installation.
+        mutect : path
+            Path to mutect jar.
+        fasta : path
+            Path to genome fasta.
+        dbsnp : path
+            Path to dbsnp vcf.
+        cosmic : path
+            Path to cosmic vcf.
+        external_server : hostname
+            Hostname of external server. Username assumed to be the same.
+            Assumed to have access through key.
+        variant_outdir : directory
+            Directory to write variant calling results to.
+        outdir : directory
+            Directory to write bam files to.
+        threads : int
+            Number of different processes/threads to use.
+        sleeptime : int
+            Number of seconds to sleep between engine updates.
+        bam_fnc : function
+            Function to apply to each bam file (path) after the bam file is
+            made. For instance, you could make a function that uses the bam file
+            path as input for variant calling, etc. This function is called as
+            soon as the engine knows that the bam file is created.
+        engine_fnc : function
+            Function to execute every time the engine cycles (aka every
+            sleeptime number of seconds while the engine is running). 
+
+        """
+        self.tumor_normal = tumor_normal
+        assert set(analysis_ids) == set(tumor_normal.keys() +
+                                        tumor_normal.values())
+        analysis_ids = self.sort_ids(analysis_ids)
         ReadsFromIntervalsEngine.__init__(analysis_ids, bed, outdir=outdir,
                                           threads=threads, sleeptime=sleeptime,
-                                          bam_fnc=TODO)
+                                          engine_fnc=engine_fnc)
+        # Paths to various files needed for mutect.
+        self.mutect = mutect
+        self.fasta = fasta
+        self.dbsnp = dbsnp
+        self.cosmic = cosmic
+        self.external_server = external_server
+        # analysis_ids that we have begun calling variants for.
+        self.variant_calling_started = []
 
-        # Function for bam_fnc. Should submit job to flc.
-        # Some way to watch for jobs that finish. Maybe I can just watch to see
-        # when the output file is copied somewhere, then process it further? Or
-        # just not worry after I submit? It would be nice to know even if just
-        # for the purpose of monitoring progress. I would almost need another
-        # engine for this, and that might be fine. I can have a monitor engine
-        # that is separate of the GTFuse engine.
-        # Something to keep track of which analysis_ids and which intervals have
-        # been completed.
-        # Delete bam files (probably just move them to scratch when I'm going to
-        # use them).
+        def sort_ids(ids):
+            """Make list of ids where the tumor and normal ids as defined by
+            self.tumor_normal are next to each other in the list."""
+            out = []
+            for k in self.tumor_normal.keys():
+                out.append(k)
+                out.append(self.tumor_normal[k])
+            return out
 
+    def variant_calling_worker(self):
+        for t in ((set(self.finished) - set(self.variant_calling_started)) &
+                  set(self.tumor_normal.keys())):
+            n = self.tumor_normal[t]
+            if n in self.finished:
+                self.call_variants(t, n)
+                self.variant_calling_started.append(t)
+                self.variant_calling_started.append(n)
 
+    def call_variants(self, tumor, normal):
+        # Get analysis_ids for tumor and normal.
+        pbs = self.write_pbs_script(tumor, normal)
+        self.submit_pbs_script(pbs)
 
+    def submit_pbs_script(self):
+        import subprocess
+        subprocess.check_call(['ssh', self.external_server, 'qsub', pbs])
 
-
-
-
-
-
+    def write_pbs_script(self, tumor, normal):
+        # Make directory to store results if it doesn't already exist.
+        tumor_id = os.path.splitext(os.path.split(tumor)[1])[0]
+        normal_id = os.path.splitext(os.path.split(normal)[1])[0]
+        analysis_dir = os.makedirs(os.path.join(self.variant_outdir,
+                                                '{}_{}'.format(tumor_id, 
+                                                               normal_id)))
+        try:
+            os.makedirs(analysis_dir)
+        except OSError:
+            pass
+        bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
+        out = os.path.join(analysis_dir, '{}_variants.txt'.format(bed_name))
+        wig = os.path.join(analysis_dir, '{}.wig'.format(bed_name))
+        pbs = os.path.join(analysis_dir, '{}_mutect.pbs'.format(bed_name))
+        pbs_out = '{}_mutect.out'.format(os.path.join(analysis_dir, bed_name))
+        pbs_err = '{}_mutect.err'.format(os.path.join(analysis_dir, bed_name))
+        pbs_temp_dir = '/scratch/{}_{}_{}'.format(tumor_id, normal_id, bed_name)
+        pbs_temp_tumor = os.path.join(pbs_temp_dir, os.path.split(tumor)[1])
+        pbs_temp_normal = os.path.join(pbs_temp_dir, os.path.split(normal)[1])
+        with open(pbs, 'w') as f:
+            f.write('#!/bin/bash\n\n')
+            f.write('\n'.join(['#PBS -q high', 
+                               '#PBS -N {}_{}_{}'.format(tumor_id, normal_id,
+                                                         bed_name),
+                               '#PBS -l nodes=1:ppn=8',
+                               '#PBS -o {}'.format(pbs_out),
+                               '#PBS -e {}'.format(pbs_err)]) + '\n')
+            # Copy bam files to scratch.
+            f.write('\n'.join(['rsync -avz {} {}'.format(tumor, pbs_temp_tumor),
+                               'rsync -avz {} {}'.format(normal, 
+                                                         pbs_temp_normal)]) 
+                    + '\n')
+            # Run mutect.
+            f.write('\\\n'.join(['{} -jar {}'.format(self.java, self.mutect),
+                                 '\t-T MuTect',
+                                 '\t-L {}'.format(self.bed),
+                                 '\t-R {}'.format(self.fasta),
+                                 '\t--dbsnp {}'.format(self.dbsnp),
+                                 '\t--cosmic {}'.format(self.cosmic),
+                                 '\t-I:normal {}'.format(pbs_temp_normal),
+                                 '\t-I:tumor {}'.format(pbs_temp_tumor),
+                                 '\t--out out.txt',
+                                 '\t--coverage_file out.wig']) + '\n')
+            # Copy results to analysis_dir.
+            f.write('\n'.join(['rsync -avz out.txt {}'.format(out),
+                               'rsync -avz out.wig {}'.format(wig)]) + '\n')
+            # Remove bam files and temporary directory on scratch.
+            f.write('rm -r {} {} {}\n'.format(tumor, normal, pbs_temp_dir))
+        return pbs
