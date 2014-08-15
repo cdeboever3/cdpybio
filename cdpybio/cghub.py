@@ -133,8 +133,27 @@ def bed_to_samtools_intervals(bed):
     return intervals
 
 class ReadsFromIntervalsEngine:
+    # This class creates an "engine" that runs in the background and gets reads
+    # for intervals from different bam files. The goal here was to make
+    # something that could be monitored and controlled while running so that I
+    # can gracefully exit a job that may take a long time. To do this, the
+    # engine runs on a thread from the threading module. This thread can run in
+    # the background but I can set an event to stop it. The thread cretes
+    # several more threads using the multiprocessing module. Each of the
+    # multiprocessing threads mounts a bam file, gets the reads from the
+    # intervals, and unmounts the bam file. When the engine is killed, the
+    # engine waits for the multiprocessing threads to finish, then the engine is
+    # finally stopped. I may build in some ability to stop the multiprocessing
+    # threads as they are running, but that might be hard because the call to
+    # GTFuse is generally the thing that takes a long time, so I'd just have to
+    # kill that in some way.  I also wanted to make the class simple so that it
+    # could be subclassed for more complex analyses.  Subclassing will mainly be
+    # accomplished using the bam_fnc parameter which allows execution of an
+    # arbitrary function on each bam file that contains the reads from the
+    # intervals as the bam files are created. 
+
     def __init__(self, analysis_ids, bed, outdir='.', threads=10,
-                 sleeptime=10):
+                 sleeptime=10, bam_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -150,14 +169,21 @@ class ReadsFromIntervalsEngine:
             Number of different processes/threads to use.
         sleeptime : int
             Number of seconds to sleep between engine updates.
+        bam_fnc : function
+            Function to apply to each bam file (path) after the bam file is
+            made. For instance, you could make a function that uses the bam file
+            path as input for variant calling, etc. This function is called as
+            soon as the engine knows that the bam file is created.
 
         """
+        import threading
         assert len(analysis_ids) > 0
         assert os.path.exists(intervals)
         self.analysis_ids = analysis_ids
         self.bed = bed
         self.outdir = outdir
         self.sleeptime = sleeptime
+        self.bam_fnc = bam_fnc
         # Intervals in the format 1:20-200 etc. as a list.
         self.intervals = bed_to_samtools_intervals(self.bed)
         # Analysis_ids that the engine has started getting reads for.
@@ -170,18 +196,24 @@ class ReadsFromIntervalsEngine:
         self.bams = []
         # Queue used when multiprocessing.
         self.queue = None
-        self.running = True
-        self.run_engine()
+        # We set this event when we want to stop the engine.
+        self.running = threading.Event()
+        self.engine_thread = None
+        self.start_engine()
 
     def remove_finished_procs(self):
+        import types
         for p in self.procs:
             # If we find a dead process, there should be a result in the queue.
             # The result will not necessarily be from that dead process though.
             if not p.is_alive():
                 p.join()
-                self.bams.append(self.queue.get())
+                finished_bam = self.queue.get()
+                self.bams.append(finished_bam)
                 self.current_procs.remove(p)
                 self.old_procs.append(p)
+                if type(self.bam_fnc) == types.FunctionType:
+                    self.bam_fnc(finished_bam)
 
     def new_proc(self):
         import multiprocessing
@@ -192,29 +224,66 @@ class ReadsFromIntervalsEngine:
                                         args=[aid, self.intervals, bam])
             self.current_procs.append(p)
             p.start()
+            self.started.add(aid)
 
     def add_procs(self):
-        while len(self.current_procs) < self.threads:
+        while (len(self.current_procs) < self.threads and 
+               len(self.remaining) > 0):
             self.new_proc()
 
-    def run_engine(self):
+    def stop_engine(self):
+        self.running.set()
+
+    def start_engine(self):
+        import threading
+        t = threading.Thread(target=self.worker)
+        self.engine_thread = t
+        t.start()
+
+    def worker(self):
         import multiprocessing
         import sys
-        import time
 
-        i = 0
-        procs = []
         self.queue = multiprocessing.Queue()
-        while i < len(self.analysis_ids) and len(self.remaining) > 0:
-            if not self.running:
-                break
-            self.remove_finished_procs()
-            self.add_procs()
-            time.sleep(self.sleeptime)
+        while not self.running.isSet():
+            if len(self.remaining) == 0:
+                self.stop_engine()
+            else:
+                self.remove_finished_procs()
+                self.add_procs()
+            self.running.wait(self.sleeptime)
         # If we get here, we aren't running any more. Wait for processes to
-        # finish, .join() them, then exit.
-        sys.stdout.write('Engine stopping, waiting for jobs to conclude.\n')
+        # finish, then exit.
+        sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
         while len(self.current_procs) > 0:
             self.remove_finished_procs()
             time.sleep(self.sleeptime)
-        sys.stdout.write('Jobs concluded, engine stopped.\n')
+        sys.stderr.write('Jobs concluded, engine stopped.\n')
+
+class VariantCallingEngine(ReadsFromIntervalsEngine):
+    def __init__(self, analysis_ids, bed, outdir='.', threads=10,
+                 sleeptime=10, bam_fnc=None):
+        ReadsFromIntervalsEngine.__init__(analysis_ids, bed, outdir=outdir,
+                                          threads=threads, sleeptime=sleeptime,
+                                          bam_fnc=TODO)
+
+        # Function for bam_fnc. Should submit job to flc.
+        # Some way to watch for jobs that finish. Maybe I can just watch to see
+        # when the output file is copied somewhere, then process it further? Or
+        # just not worry after I submit? It would be nice to know even if just
+        # for the purpose of monitoring progress. I would almost need another
+        # engine for this, and that might be fine. I can have a monitor engine
+        # that is separate of the GTFuse engine.
+        # Something to keep track of which analysis_ids and which intervals have
+        # been completed.
+        # Delete bam files (probably just move them to scratch when I'm going to
+        # use them).
+
+
+
+
+
+
+
+
+
