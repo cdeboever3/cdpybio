@@ -23,6 +23,9 @@ def mount_bam(analysis_id, mount='/tmp', cache='/tmp/fusecache'):
         Path to the mounted bam file.
     
     """
+    import glob
+    import subprocess
+    import time
     if not os.path.exists(cache):
         os.makedirs(cache)
     analysis_dir = '{}_{}'.format(analysis_id,
@@ -51,6 +54,8 @@ def unmount_bam(bam):
         Path to the mounted bam file.
 
     """
+    import glob
+    import subprocess
     p = os.path.sep.join(bam.split(os.path.sep)[0:-3] + ['*'])
     files = glob.glob(p)
     mnt = os.path.sep.join(bam.split(os.path.sep)[0:-2])
@@ -85,14 +90,16 @@ def reads_from_intervals(analysis_id, intervals,
         Path to the bam file with the reads for the intervals.
     
     """
+    import shutil
+    import subprocess
     tcga_bam = mount_bam(analysis_id)
-    # I'll make a tempdir to hold the mounted bam and any other temp files I
+    # I'll make a temp_dir to hold the mounted bam and any other temp files I
     # want to make.
-    tempdir = os.path.sep.join(tcga_bam.split(os.path.sep)[0:-3])
+    temp_dir = os.path.sep.join(tcga_bam.split(os.path.sep)[0:-2])
     temp_bams = []
-    for i in xrange(0, intervals.shape[0], max_intervals):
+    for i in xrange(0, len(intervals), max_intervals):
         ints = ' '.join(intervals[i:i + max_intervals])
-        temp_bam = '{}_{}.bam'.format(tempdir, i)
+        temp_bam = '{}_{}.bam'.format(temp_dir, i)
         subprocess.check_call('samtools view -b {} {} > {}'.format(tcga_bam, 
                                                                    ints,
                                                                    temp_bam),   
@@ -182,10 +189,11 @@ class ReadsFromIntervalsEngine:
         """
         import threading
         assert len(analysis_ids) > 0
-        assert os.path.exists(intervals)
+        assert os.path.exists(bed)
         self.analysis_ids = analysis_ids
         self.bed = bed
         self.outdir = outdir
+        self.threads = threads
         self.sleeptime = sleeptime
         self.bam_fnc = bam_fnc
         self.engine_fnc = engine_fnc
@@ -210,7 +218,7 @@ class ReadsFromIntervalsEngine:
 
     def remove_finished_procs(self):
         import types
-        for p in self.procs:
+        for p in self.current_procs:
             # If we find a dead process, there should be a result in the queue.
             # The result will not necessarily be from that dead process though.
             if not p.is_alive():
@@ -222,16 +230,20 @@ class ReadsFromIntervalsEngine:
                 if type(self.bam_fnc) == types.FunctionType:
                     self.bam_fnc(finished_bam)
 
+    def get_reads(self, analysis_id, bam):
+        bam = reads_from_intervals(analysis_id, self.intervals, bam)
+        self.queue.put(bam)
+
     def new_proc(self):
         import multiprocessing
         if len(self.remaining) > 0:
-            aid = self.remaining.pop()
+            analysis_id = self.remaining.pop()
             bam = '{}.bam'.format(os.path.join(self.outdir, analysis_id))
-            p = multiprocessing.Process(target=reads_from_intervals,
-                                        args=[aid, self.intervals, bam])
+            p = multiprocessing.Process(target=self.get_reads,
+                                        args=[analysis_id, bam])
             self.current_procs.append(p)
             p.start()
-            self.started.add(aid)
+            self.started.append(analysis_id)
 
     def add_procs(self):
         while (len(self.current_procs) < self.threads and 
@@ -250,13 +262,15 @@ class ReadsFromIntervalsEngine:
     def read_interval_worker(self):
         import multiprocessing
         import sys
+        import time
         import types
 
         self.queue = multiprocessing.Queue()
-        while not self.running.isSet():
+        while not self.running.is_set():
             if len(self.remaining) == 0:
                 self.stop_engine()
             else:
+                sys.stderr.write('Engine still running\n')
                 self.remove_finished_procs()
                 self.add_procs()
                 if type(self.engine_fnc) == types.FunctionType:
