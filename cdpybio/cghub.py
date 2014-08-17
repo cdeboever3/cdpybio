@@ -130,19 +130,43 @@ class GTFuseBam:
             elif os.path.isdir(f):
                 shutil.rmtree(f)
         self.mounted = False
-        
-    def reads_from_intervals(self, intervals, interval_bam, max_intervals=10,
-                             tries=10, sleeptime=3):
+
+class ReadsFromIntervalsBam:
+    def __init__(self, gtfuse_bam, intervals, bam):
         """
         Get reads from analysis id for given intervals 
         
         Parameters
         ----------
-        intervals : list
-            List of intervals of the form 1:10-200.
-        interval_bam : str
+        gtfuse_bam : GTFuseBam
+            GTFuseBam object. The bam doesn't have to be mounted.
+        intervals : list or path
+            List of intervals of the form 1:10-200 or bed file.
+        bam : str
             Path to the bam file where the reads for the intervals will be
             written.
+        
+        """
+        self.gtfuse_bam = gtfuse_bam
+        if type(intervals) == list:
+            self.intervals = intervals
+        else:
+            self.intervals = bed_to_samtools_intervals(intervals)
+        # List of intervals that we didn't obtain reads for. Hopefully this is
+        # always empty.
+        self.bad_intervals = []
+        # Bam file with the reads from the intervals.
+        self.bam = bam
+        self.analysis_id = self.gtfuse_bam.analysis_id
+        self.tempdir = self.gtfuse_bam.tempdir
+        self.reads_from_intervals()
+        
+    def reads_from_intervals(self, max_intervals=10, tries=10, sleeptime=3):
+        """
+        Get reads from analysis id for given intervals 
+        
+        Parameters
+        ----------
         max_intervals : int
             Maximum number of intervals to obtain with one samtools view call.
         tries : int
@@ -152,43 +176,39 @@ class GTFuseBam:
             Number of seconds to wait between tries if the reads aren't obtaiend
             on the first try.
         
-        Returns
-        -------
-        interval_bam : str
-            Path to the bam file with the reads for the intervals.
-        
         """
         import shutil
         import subprocess
         import time
-        if not self.mounted():
-            self.mount()
+        if not self.gtfuse_bam.mounted():
+            self.gtfuse_bam.mount()
         temp_bams = []
-        for i in range(0, len(intervals), max_intervals):
-            ints = ' '.join(intervals[i:i + max_intervals])
+        for i in range(0, len(self.intervals), max_intervals):
+            ints = ' '.join(self.intervals[i:i + max_intervals])
             temp_bam = os.path.join(self.tempdir, 
-                                    '{}_{}.bam'.format(analysis_id, i))
-            c = 'samtools view -b {} {} > {}'.format(tcga_bam, ints, temp_bam)
+                                    '{}_{}.bam'.format(self.analysis_id, i))
+            c = 'samtools view -b {} {} > {}'.format(self.gtfuse_bam.bam, ints, 
+                                                     temp_bam)
             t = 0
             while t < tries:
                 try:
                     subprocess.check_call(c, shell=True)
                 except subprocess.CalledProcessError:
                     t += 1
-                    self.unmount()
+                    self.gtfuse_bam.unmount()
                     time.sleep(sleeptime)
-                    self.mount()
-                    
+                    self.gtfuse_bam.mount()
+            if t = tries:
+                self.bad_intervals.append(self.intervals[i:i + max_intervals])
             temp_bams.append(temp_bam)
         if len(temp_bams) > 1:
-            c = 'samtools merge -f {} {}'.format(interval_bam, 
-                                                ' '.join(temp_bams))
+            c = 'samtools merge -f {} {}'.format(self.bam,
+                                                 ' '.join(temp_bams))
             subprocess.check_call(c, shell=True)
             for b in temp_bams:
                 os.remove(b)
         else:
-            shutil.move(temp_bams[0], interval_bam)
-        return interval_bam
+            shutil.move(temp_bams[0], self.bam)
 
 class ReadsFromIntervalsEngine:
     # This class creates an "engine" that runs in the background and gets reads
@@ -249,69 +269,27 @@ class ReadsFromIntervalsEngine:
         self.bam_fnc = bam_fnc
         self.engine_fnc = engine_fnc
         # Intervals in the format 1:20-200 etc. as a list.
-        self.intervals = bed_to_samtools_intervals(self.bed)
+        self.intervals = bed_to_samtools_intervals(intervals)
+        # Bed file name
+        self.bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
         # analysis_ids that the engine has started getting reads for.
-        self.started = []
+        self.reads_started = []
         # analysis_ids that the engine has not started getting reads for.
-        self.remaining = analysis_ids
+        self.reads_remaining = analysis_ids
         # analysis_ids that have finished.
-        self.finished = []
+        self.reads_finished = []
         self.current_procs = []
         self.old_procs = []
-        # Paths to bam files with reads.
-        self.bams = []
+        # ReadsFromIntervalsBam objects.
+        self.reads_from_intervals_bams = []
         # Queue used when multiprocessing.
         self.queue = None
         # We set this event when we want to stop the engine.
         self.stop_event = threading.Event()
         self.running = False
+        # Process that the engine is running on.
         self.engine_thread = None
         self.start_engine()
-
-    def remove_finished_procs(self):
-        import inspect
-        import types
-        for p in self.current_procs:
-            # If we find a dead process, there should be a result in the queue.
-            # The result will not necessarily be from that dead process though.
-            if not p.is_alive():
-                p.join()
-                bam = self.queue.get()
-                self.bams.append(bam)
-                analysis_id = os.path.splitext(os.path.split(bam)[1])[0]
-                self.finished.append(analysis_id)
-                self.current_procs.remove(p)
-                self.old_procs.append(p)
-                if (type(self.bam_fnc) == types.FunctionType or
-                    inspect.ismethod(self.bam_fnc)):
-                    self.bam_fnc(bam)
-
-    def get_reads(self, analysis_id, bam):
-        bam = reads_from_intervals(analysis_id, self.intervals, bam)
-        self.queue.put(bam)
-
-    def new_proc(self):
-        import multiprocessing
-        import time
-        if len(self.remaining) > 0:
-            analysis_id = self.remaining.pop()
-            bam = '{}.bam'.format(os.path.join(self.bam_outdir, analysis_id))
-            p = multiprocessing.Process(target=self.get_reads,
-                                        args=[analysis_id, bam])
-            self.current_procs.append(p)
-            p.start()
-            self.started.append(analysis_id)
-            # Wait in case we are going to mount multiple bams. Mounting too
-            # many bams too close in time might make problems?
-            time.sleep(5)
-
-    def add_procs(self):
-        while (len(self.current_procs) < self.threads and 
-               len(self.remaining) > 0):
-            self.new_proc()
-
-    def stop_engine(self):
-        self.stop_event.set()
 
     def start_engine(self):
         import threading
@@ -327,9 +305,10 @@ class ReadsFromIntervalsEngine:
         import time
         import types
 
+        # ReadsFromIntervalsBam objects will go in the queue.
         self.queue = multiprocessing.Queue()
         while not self.stop_event.is_set():
-            if len(self.remaining) == 0:
+            if len(self.reads_remaining) == 0:
                 self.stop_engine()
             else:
                 self.remove_finished_procs()
@@ -338,7 +317,7 @@ class ReadsFromIntervalsEngine:
                     inspect.ismethod(self.engine_fnc)):
                     self.engine_fnc()
             self.stop_event.wait(self.sleeptime)
-        # If we get here, we aren't running any more. Wait for processes to
+        # If we get here, we don't want to run any more. Wait for processes to
         # finish, then exit.
         sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
         while len(self.current_procs) > 0:
@@ -349,6 +328,50 @@ class ReadsFromIntervalsEngine:
             time.sleep(self.sleeptime)
         sys.stderr.write('Jobs concluded, engine stopped.\n')
         self.running = False
+
+    def stop_engine(self):
+        self.stop_event.set()
+
+    def remove_finished_procs(self):
+        import inspect
+        import types
+        for p in self.current_procs:
+            # If we find a dead process, there should be a result in the queue.
+            # The result will not necessarily be from that dead process though.
+            if not p.is_alive():
+                # This will be a ReadsFromIntervalsBam object.
+                bam = self.queue.get()
+                self.reads_from_intervals_bams.append(bam)
+                self.reads_finished.append(bam.analysis_id)
+                self.current_procs.remove(p)
+                self.old_procs.append(p)
+                if (type(self.bam_fnc) == types.FunctionType or
+                    inspect.ismethod(self.bam_fnc)):
+                    self.bam_fnc(bam)
+
+    def get_reads(self, analysis_id):
+        bam_path = os.path.join(self.bam_outdir,
+                                '{}_{}.bam'.format(self.bed_name, analysis_id))
+        gtfuse_bam = GTFuseBam(analysis_id)
+        bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_name)
+        gtfuse_bam.unmount()
+        self.queue.put(bam)
+
+    def new_proc(self):
+        import multiprocessing
+        import time
+        if len(self.reads_remaining) > 0:
+            analysis_id = self.reads_remaining.pop()
+            p = multiprocessing.Process(target=self.get_reads,
+                                        args=[analysis_id])
+            self.current_procs.append(p)
+            p.start()
+            self.reads_started.append(analysis_id)
+
+    def add_procs(self):
+        while (len(self.current_procs) < self.threads and 
+               len(self.reads_remaining) > 0):
+            self.new_proc()
 
 class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # This class extends the ReadsFromIntervalsEngine to both get the bam file
@@ -440,10 +463,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def variant_calling_worker(self):
         import sys
-        for t in ((set(self.finished) - set(self.variant_calling_started)) &
+        for t in ((set(self.reads_finished) - set(self.variant_calling_started)) &
                   set(self.tumor_normal_ids.keys())):
             n = self.tumor_normal_ids[t]
-            if n in self.finished:
+            if n in self.reads_finished:
                 self.call_variants(t, n)
                 self.variant_calling_started.append(t)
                 self.variant_calling_started.append(n)
