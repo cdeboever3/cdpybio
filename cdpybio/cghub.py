@@ -1,140 +1,5 @@
 import os
 
-def mount_bam(analysis_id, mount='/tmp', cache='/tmp/fusecache'):
-    """
-    Mount bam file for given analysis ID using GTFuse
-    
-    Creates a directory for this analysis ID in "mount" and mounts 
-    makes mnt and cache directories then mounts the bam file using 
-    GTFuse. Returns bam file path.
-
-    Parameters
-    ----------
-    analysis_id : str
-        TCGA analysis_id for sample of interest
-    mount : directory
-        Directory to make temporary directory and files.
-    cache : directory
-        Directory to store GTFuse cache files.
-    
-    Returns
-    -------
-    bam : path
-        Path to the mounted bam file.
-    
-    """
-    import glob
-    import subprocess
-    import time
-    if not os.path.exists(cache):
-        os.makedirs(cache)
-    analysis_dir = '{}_{}'.format(analysis_id,
-                                  time.strftime('%Y_%m_%d_%H_%M_%S'))
-    mnt = os.path.join(mount, analysis_dir, 'mnt')
-    os.makedirs(mnt)
-    url = ('https://cghub.ucsc.edu/cghub/data'
-           '/analysis/download/{}'.format(analysis_id))
-    subprocess.check_call(['gtfuse', 
-                           '--ssl-no-verify-ca',
-                           '--cache-dir',
-                           cache,
-                           url,
-                           mnt])
-    files = glob.glob('{}/{}/*'.format(mnt, analysis_id))
-    bam = [ x for x in files if os.path.splitext(x)[1] == '.bam' ][0]
-    return os.path.realpath(bam)
-    
-def unmount_bam(bam, tries=10, wait=10):
-    """
-    Unmount bam file mounted with GTFuse
-    
-    Parameters
-    ----------
-    bam : path
-        Path to the mounted bam file.
-    tries : int
-        Number of times to try to unmount bam file. Sometimes they don't unmount
-        on the first time if they are being used or something.
-    wait : int
-        Number of seconds to wait between tries if the bam file doesn't unmount
-        on the first try.
-
-    """
-    import glob
-    import subprocess
-    import time
-    p = os.path.sep.join(bam.split(os.path.sep)[0:-3] + ['*'])
-    files = glob.glob(p)
-    mnt = os.path.sep.join(bam.split(os.path.sep)[0:-2])
-    for f in files:
-        if f != mnt:
-            os.remove(f)
-
-    t = 0
-    while t < tries:
-        try:
-            subprocess.call('fusermount -u {}'.format(mnt),
-                            shell=True)
-            break
-        except OSError:
-            time.sleep(wait)
-            t += 1
-
-    os.rmdir(mnt)
-    os.rmdir(os.path.split(mnt)[0])
-    
-def reads_from_intervals(analysis_id, intervals, 
-                         interval_bam,
-                         max_intervals=4000):
-    """
-    Get reads from analysis id for given intervals 
-    
-    Parameters
-    ----------
-    analysis_id : str
-        TCGA analysis_id for sample of interest
-    intervals : list
-        List of intervals of the form 1:10-200.
-    interval_bam : str
-        Path to the bam file where the reads for the intervals will be written.
-    max_intervals : int
-        Maximum number of intervals to obtain with one samtools view call.
-    
-    Returns
-    -------
-    interval_bam : str
-        Path to the bam file with the reads for the intervals.
-    
-    """
-    import shutil
-    import subprocess
-    tcga_bam = mount_bam(analysis_id)
-    # I'll make a tempdir to hold the mounted bam and any other temp files I
-    # want to make.
-    tempdir = os.path.sep.join(tcga_bam.split(os.path.sep)[0:-3])
-    temp_bams = []
-    for i in range(0, len(intervals), max_intervals):
-        ints = ' '.join(intervals[i:i + max_intervals])
-        temp_bam = os.path.join(tempdir, '{}_{}.bam'.format(analysis_id, i))
-        subprocess.check_call('samtools view -b {} {} > {}'.format(tcga_bam, 
-                                                                   ints,
-                                                                   temp_bam),   
-                              shell=True)
-        temp_bams.append(temp_bam)
-    if len(temp_bams) > 1:
-        # subprocess.check_call(['samtools', 'merge', '-f', interval_bam, 
-        #                        ' '.join(temp_bams)])
-        command = 'samtools merge -f {} {}'.format(interval_bam, 
-                                                   ' '.join(temp_bams))
-        subprocess.check_call(command, shell=True)
-                                                               
-        for b in temp_bams:
-            os.remove(b)
-    else:
-        shutil.move(temp_bams[0], interval_bam)
-    unmount_bam(tcga_bam)
-    return interval_bam
-
 def bed_to_samtools_intervals(bed):
     """
     Convert bed file to intervals for samtools view
@@ -158,6 +23,172 @@ def bed_to_samtools_intervals(bed):
         intervals.append('{}:{}-{}'.format(vals[0], vals[1], vals[2]))
         line = f.readline().strip()
     return intervals
+
+class GTFuseBam:
+    def __init__(self, analysis_id. mountpoint='/tmp',
+                 cache='/tmp/fusecache'):
+        """
+        Parameters
+        ----------
+        analysis_id : str
+            TCGA analysis_id for sample of interest
+        mountpoint : directory
+            Directory to make temporary directory and files.
+        cache : directory
+            Directory to store GTFuse cache files.
+        
+        """
+        self.analysis_id = analysis_id
+        self.mountpoint = mountpoint
+        self.cache = cache
+        self._make_tempdir()
+        self.bam = ''
+        self.mounted = False
+        self.mount()
+
+    def _make_tempdir():
+        """Make a temp directory to hold the mounted bam file and allow us to 
+        store other temp files."""
+        self.tempdir = os.path.join(self.mountpoint, self.analysis_id)
+        if not os.path.exists(self.tempdir):
+            os.makedirs(self.tempdir)
+
+    def mount(self):
+        """
+        Mount bam file for given analysis ID using GTFuse
+        
+        Creates a directory for this analysis ID in "mount" and mounts 
+        makes mnt and cache directories then mounts the bam file using 
+        GTFuse. Returns bam file path.
+
+        """
+        import glob
+        import subprocess
+        import time
+        mnt = os.path.join(self.tempdir, 'mnt')
+        # This mnt directory shouldn't already exist because the bam file
+        # shouldn't already be mounted.
+        os.makedirs(mnt)
+        if not os.path.exists(self.cache):
+            os.makedirs(self.cache)
+        url = ('https://cghub.ucsc.edu/cghub/data'
+               '/analysis/download/{}'.format(self.analysis_id))
+        subprocess.check_call(['gtfuse', 
+                               '--ssl-no-verify-ca',
+                               '--cache-dir',
+                               cache,
+                               url,
+                               mnt])
+        files = glob.glob('{}/{}/*'.format(mnt, analysis_id))
+        bam = [ x for x in files if os.path.splitext(x)[1] == '.bam' ][0]
+        self.bam = os.path.realpath(bam)
+        self.mounted = True
+        
+    def unmount(self, tries=10, sleeptime=10):
+        """
+        Unmount bam file mounted with GTFuse
+        
+        Parameters
+        ----------
+        tries : int
+            Number of times to try to unmount bam file. Sometimes they don't
+            unmount on the first time if they are being used or something.
+        sleeptime : int
+            Number of seconds to wait between tries if the bam file doesn't
+            unmount on the first try.
+    
+        """
+        import glob
+        import shutil
+        import subprocess
+        import time
+        p = os.path.sep.join(self.bam.split(os.path.sep)[0:-3] + ['*'])
+        files = glob.glob(p)
+        mnt = os.path.sep.join(self.bam.split(os.path.sep)[0:-2])
+        # First delete other temp files that are not the mounted bam.
+        for f in files:
+            if f != mnt:
+                os.remove(f)
+        # Now unmount bam.
+        t = 0
+        while t < tries:
+            try:
+                subprocess.call('fusermount -u {}'.format(mnt),
+                                shell=True)
+                break
+            except OSError:
+                time.sleep(sleeptime)
+                t += 1
+    
+        os.rmdir(mnt)
+        os.rmdir(os.path.split(mnt)[0])
+        # Now clear cache.
+        files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
+        for f in files:
+            if os.path.isfile(f):
+                os.remove(f)
+            elif os.path.isdir(f):
+                shutil.rmtree(f)
+        self.mounted = False
+        
+    def reads_from_intervals(self, intervals, interval_bam, max_intervals=10,
+                             tries=10, sleeptime=3):
+        """
+        Get reads from analysis id for given intervals 
+        
+        Parameters
+        ----------
+        intervals : list
+            List of intervals of the form 1:10-200.
+        interval_bam : str
+            Path to the bam file where the reads for the intervals will be
+            written.
+        max_intervals : int
+            Maximum number of intervals to obtain with one samtools view call.
+        tries : int
+            Number of times to try to get a group of regions from the bam file. 
+            Sometimes there is an error for some of the regions.
+        sleeptime : int
+            Number of seconds to wait between tries if the reads aren't obtaiend
+            on the first try.
+        
+        Returns
+        -------
+        interval_bam : str
+            Path to the bam file with the reads for the intervals.
+        
+        """
+        import shutil
+        import subprocess
+        import time
+        if not self.mounted():
+            self.mount()
+        temp_bams = []
+        for i in range(0, len(intervals), max_intervals):
+            ints = ' '.join(intervals[i:i + max_intervals])
+            temp_bam = os.path.join(self.tempdir, 
+                                    '{}_{}.bam'.format(analysis_id, i))
+            c = 'samtools view -b {} {} > {}'.format(tcga_bam, ints, temp_bam)
+            t = 0
+            while t < tries:
+                try:
+                    subprocess.check_call(c, shell=True)
+                except subprocess.CalledProcessError:
+                    t += 1
+                    self.unmount()
+                    time.sleep(sleeptime)
+                    self.mount()
+                    
+            temp_bams.append(temp_bam)
+        if len(temp_bams) > 1:
+            c = 'samtools merge -f {} {}'.format(interval_bam, 
+                                                ' '.join(temp_bams))
+            subprocess.check_call(c, shell=True)
+            for b in temp_bams:
+                os.remove(b)
+        else:
+            shutil.move(temp_bams[0], interval_bam)
+        return interval_bam
 
 class ReadsFromIntervalsEngine:
     # This class creates an "engine" that runs in the background and gets reads
@@ -256,8 +287,7 @@ class ReadsFromIntervalsEngine:
                     self.bam_fnc(bam)
 
     def get_reads(self, analysis_id, bam):
-        bam = reads_from_intervals(analysis_id, self.intervals, bam,
-                                   max_intervals=10)
+        bam = reads_from_intervals(analysis_id, self.intervals, bam)
         self.queue.put(bam)
 
     def new_proc(self):
