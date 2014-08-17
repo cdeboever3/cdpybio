@@ -44,7 +44,7 @@ def mount_bam(analysis_id, mount='/tmp', cache='/tmp/fusecache'):
     bam = [ x for x in files if os.path.splitext(x)[1] == '.bam' ][0]
     return os.path.realpath(bam)
     
-def unmount_bam(bam):
+def unmount_bam(bam, tries=10, wait=10):
     """
     Unmount bam file mounted with GTFuse
     
@@ -52,18 +52,34 @@ def unmount_bam(bam):
     ----------
     bam : path
         Path to the mounted bam file.
+    tries : int
+        Number of times to try to unmount bam file. Sometimes they don't unmount
+        on the first time if they are being used or something.
+    wait : int
+        Number of seconds to wait between tries if the bam file doesn't unmount
+        on the first try.
 
     """
     import glob
     import subprocess
+    import time
     p = os.path.sep.join(bam.split(os.path.sep)[0:-3] + ['*'])
     files = glob.glob(p)
     mnt = os.path.sep.join(bam.split(os.path.sep)[0:-2])
     for f in files:
         if f != mnt:
             os.remove(f)
-    subprocess.call('fusermount -u {}'.format(mnt),
-                    shell=True)
+
+    t = 0
+    while t < tries:
+        try:
+            subprocess.call('fusermount -u {}'.format(mnt),
+                            shell=True)
+            break
+        except OSError:
+            time.sleep(wait)
+            t += 1
+
     os.rmdir(mnt)
     os.rmdir(os.path.split(mnt)[0])
     
@@ -93,21 +109,25 @@ def reads_from_intervals(analysis_id, intervals,
     import shutil
     import subprocess
     tcga_bam = mount_bam(analysis_id)
-    # I'll make a temp_dir to hold the mounted bam and any other temp files I
+    # I'll make a tempdir to hold the mounted bam and any other temp files I
     # want to make.
-    temp_dir = os.path.sep.join(tcga_bam.split(os.path.sep)[0:-2])
+    tempdir = os.path.sep.join(tcga_bam.split(os.path.sep)[0:-3])
     temp_bams = []
-    for i in xrange(0, len(intervals), max_intervals):
+    for i in range(0, len(intervals), max_intervals):
         ints = ' '.join(intervals[i:i + max_intervals])
-        temp_bam = '{}_{}.bam'.format(temp_dir, i)
+        temp_bam = os.path.join(tempdir, '{}_{}.bam'.format(analysis_id, i))
         subprocess.check_call('samtools view -b {} {} > {}'.format(tcga_bam, 
                                                                    ints,
                                                                    temp_bam),   
                               shell=True)
         temp_bams.append(temp_bam)
     if len(temp_bams) > 1:
-        subprocess.check_call(['samtools', 'merge', '-f', interval_bam, 
-                               ' '.join(temp_bams)])
+        # subprocess.check_call(['samtools', 'merge', '-f', interval_bam, 
+        #                        ' '.join(temp_bams)])
+        command = 'samtools merge -f {} {}'.format(interval_bam, 
+                                                   ' '.join(temp_bams))
+        subprocess.check_call(command, shell=True)
+                                                               
         for b in temp_bams:
             os.remove(b)
     else:
@@ -160,7 +180,7 @@ class ReadsFromIntervalsEngine:
     # intervals as the bam files are created and the engine_fnc parameter which
     # executes an arbitrary function every time the engine cycles.
 
-    def __init__(self, analysis_ids, bed, outdir='.', threads=10,
+    def __init__(self, analysis_ids, bed, bam_outdir='.', threads=10,
                  sleeptime=10, bam_fnc=None, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
@@ -171,7 +191,7 @@ class ReadsFromIntervalsEngine:
             List of TCGA analysis IDs.
         bed : path
             Bed file with intervals.
-        outdir : directory
+        bam_outdir : directory
             Directory to write bam files to.
         threads : int
             Number of different processes/threads to use.
@@ -192,7 +212,7 @@ class ReadsFromIntervalsEngine:
         assert os.path.exists(bed)
         self.analysis_ids = analysis_ids
         self.bed = bed
-        self.outdir = outdir
+        self.bam_outdir = bam_outdir
         self.threads = threads
         self.sleeptime = sleeptime
         self.bam_fnc = bam_fnc
@@ -202,7 +222,7 @@ class ReadsFromIntervalsEngine:
         # analysis_ids that the engine has started getting reads for.
         self.started = []
         # analysis_ids that the engine has not started getting reads for.
-        self.remaining = self.analysis_ids
+        self.remaining = analysis_ids
         # analysis_ids that have finished.
         self.finished = []
         self.current_procs = []
@@ -212,38 +232,48 @@ class ReadsFromIntervalsEngine:
         # Queue used when multiprocessing.
         self.queue = None
         # We set this event when we want to stop the engine.
-        self.running = threading.Event()
+        self.stop_event = threading.Event()
+        self.running = False
         self.engine_thread = None
         self.start_engine()
 
     def remove_finished_procs(self):
+        import inspect
         import types
         for p in self.current_procs:
             # If we find a dead process, there should be a result in the queue.
             # The result will not necessarily be from that dead process though.
             if not p.is_alive():
                 p.join()
-                finished_bam = self.queue.get()
-                self.bams.append(finished_bam)
+                bam = self.queue.get()
+                self.bams.append(bam)
+                analysis_id = os.path.splitext(os.path.split(bam)[1])[0]
+                self.finished.append(analysis_id)
                 self.current_procs.remove(p)
                 self.old_procs.append(p)
-                if type(self.bam_fnc) == types.FunctionType:
-                    self.bam_fnc(finished_bam)
+                if (type(self.bam_fnc) == types.FunctionType or
+                    inspect.ismethod(self.bam_fnc)):
+                    self.bam_fnc(bam)
 
     def get_reads(self, analysis_id, bam):
-        bam = reads_from_intervals(analysis_id, self.intervals, bam)
+        bam = reads_from_intervals(analysis_id, self.intervals, bam,
+                                   max_intervals=10)
         self.queue.put(bam)
 
     def new_proc(self):
         import multiprocessing
+        import time
         if len(self.remaining) > 0:
             analysis_id = self.remaining.pop()
-            bam = '{}.bam'.format(os.path.join(self.outdir, analysis_id))
+            bam = '{}.bam'.format(os.path.join(self.bam_outdir, analysis_id))
             p = multiprocessing.Process(target=self.get_reads,
                                         args=[analysis_id, bam])
             self.current_procs.append(p)
             p.start()
             self.started.append(analysis_id)
+            # Wait in case we are going to mount multiple bams. Mounting too
+            # many bams too close in time might make problems?
+            time.sleep(5)
 
     def add_procs(self):
         while (len(self.current_procs) < self.threads and 
@@ -251,38 +281,44 @@ class ReadsFromIntervalsEngine:
             self.new_proc()
 
     def stop_engine(self):
-        self.running.set()
+        self.stop_event.set()
 
     def start_engine(self):
         import threading
         t = threading.Thread(target=self.read_interval_worker)
         self.engine_thread = t
         t.start()
+        self.running = True
 
     def read_interval_worker(self):
+        import inspect
         import multiprocessing
         import sys
         import time
         import types
 
         self.queue = multiprocessing.Queue()
-        while not self.running.is_set():
+        while not self.stop_event.is_set():
             if len(self.remaining) == 0:
                 self.stop_engine()
             else:
-                sys.stderr.write('Engine still running\n')
                 self.remove_finished_procs()
                 self.add_procs()
-                if type(self.engine_fnc) == types.FunctionType:
+                if (type(self.engine_fnc) == types.FunctionType or
+                    inspect.ismethod(self.engine_fnc)):
                     self.engine_fnc()
-            self.running.wait(self.sleeptime)
+            self.stop_event.wait(self.sleeptime)
         # If we get here, we aren't running any more. Wait for processes to
         # finish, then exit.
         sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
         while len(self.current_procs) > 0:
             self.remove_finished_procs()
+            if (type(self.engine_fnc) == types.FunctionType or
+                inspect.ismethod(self.engine_fnc)):
+                self.engine_fnc()
             time.sleep(self.sleeptime)
         sys.stderr.write('Jobs concluded, engine stopped.\n')
+        self.running = False
 
 class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # This class extends the ReadsFromIntervalsEngine to both get the bam file
@@ -302,18 +338,15 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # of the GTFuse engine.  Something to keep track of which analysis_ids and
     # which intervals have been completed.
 
-    def __init__(self, analysis_ids, tumor_normal, bed, java, mutect, fasta,
-                 dbsnp, cosmic, external_server='flc.ucsd.edu',
-                 variant_outdir='.', outdir='.', threads=10, sleeptime=10,
-                 bam_fnc=None, engine_fnc=None):
+    def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
+                 cosmic, external_server='flc.ucsd.edu', variant_outdir='.',
+                 bam_outdir='.', threads=10, sleeptime=10, bam_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
         Parameters
         ----------
-        analysis_ids : list
-            List of TCGA analysis IDs.
-        tumor_normal : dict
+        tumor_normal_ids : dict
             Dict mapping whose keys are tumor analysis_ids and whose values are
             the corresponding analysis_id for the normal.
         bed : path
@@ -333,7 +366,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             Assumed to have access through key.
         variant_outdir : directory
             Directory to write variant calling results to.
-        outdir : directory
+        bam_outdir : directory
             Directory to write bam files to.
         threads : int
             Number of different processes/threads to use.
@@ -344,62 +377,61 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             made. For instance, you could make a function that uses the bam file
             path as input for variant calling, etc. This function is called as
             soon as the engine knows that the bam file is created.
-        engine_fnc : function
-            Function to execute every time the engine cycles (aka every
-            sleeptime number of seconds while the engine is running). 
 
         """
-        self.tumor_normal = tumor_normal
-        assert set(analysis_ids) == set(tumor_normal.keys() +
-                                        tumor_normal.values())
-        analysis_ids = self.sort_ids(analysis_ids)
-        ReadsFromIntervalsEngine.__init__(analysis_ids, bed, outdir=outdir,
-                                          threads=threads, sleeptime=sleeptime,
-                                          engine_fnc=self.variant_calling_worker
-                                         )
+        self.tumor_normal_ids = tumor_normal_ids
+        analysis_ids = self.get_id_list()
         # Paths to various files needed for mutect.
+        self.java = java
         self.mutect = mutect
         self.fasta = fasta
         self.dbsnp = dbsnp
         self.cosmic = cosmic
+        # External server to submit jobs to.
         self.external_server = external_server
+        # Directory to store variant calling results.
+        self.variant_outdir = variant_outdir
         # analysis_ids that we have begun calling variants for.
         self.variant_calling_started = []
+        ReadsFromIntervalsEngine.__init__(self, analysis_ids, bed,
+                                          bam_outdir=bam_outdir,
+                                          threads=threads, sleeptime=sleeptime,
+                                          engine_fnc=self.variant_calling_worker
+                                         )
 
-        def sort_ids(ids):
-            """Make list of ids where the tumor and normal ids as defined by
-            self.tumor_normal are next to each other in the list."""
-            out = []
-            for k in self.tumor_normal.keys():
-                out.append(k)
-                out.append(self.tumor_normal[k])
-            return out
+    def get_id_list(self):
+        """Make list of ids where the tumor and normal ids as defined by
+        self.tumor_normal_ids are next to each other in the list."""
+        out = []
+        for k in self.tumor_normal_ids.keys():
+            out.append(k)
+            out.append(self.tumor_normal_ids[k])
+        return out
 
     def variant_calling_worker(self):
+        import sys
         for t in ((set(self.finished) - set(self.variant_calling_started)) &
-                  set(self.tumor_normal.keys())):
-            n = self.tumor_normal[t]
+                  set(self.tumor_normal_ids.keys())):
+            n = self.tumor_normal_ids[t]
             if n in self.finished:
                 self.call_variants(t, n)
                 self.variant_calling_started.append(t)
                 self.variant_calling_started.append(n)
 
     def call_variants(self, tumor, normal):
-        # Get analysis_ids for tumor and normal.
         pbs = self.write_pbs_script(tumor, normal)
         self.submit_pbs_script(pbs)
 
-    def submit_pbs_script(self):
+    def submit_pbs_script(self, pbs):
         import subprocess
         subprocess.check_call(['ssh', self.external_server, 'qsub', pbs])
 
     def write_pbs_script(self, tumor, normal):
+        tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
+        normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
         # Make directory to store results if it doesn't already exist.
-        tumor_id = os.path.splitext(os.path.split(tumor)[1])[0]
-        normal_id = os.path.splitext(os.path.split(normal)[1])[0]
-        analysis_dir = os.makedirs(os.path.join(self.variant_outdir,
-                                                '{}_{}'.format(tumor_id, 
-                                                               normal_id)))
+        analysis_dir = os.path.join(self.variant_outdir,
+                                    '{}_{}'.format(tumor, normal))
         try:
             os.makedirs(analysis_dir)
         except OSError:
@@ -410,22 +442,35 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         pbs = os.path.join(analysis_dir, '{}_mutect.pbs'.format(bed_name))
         pbs_out = '{}_mutect.out'.format(os.path.join(analysis_dir, bed_name))
         pbs_err = '{}_mutect.err'.format(os.path.join(analysis_dir, bed_name))
-        pbs_temp_dir = '/scratch/{}_{}_{}'.format(tumor_id, normal_id, bed_name)
-        pbs_temp_tumor = os.path.join(pbs_temp_dir, os.path.split(tumor)[1])
-        pbs_temp_normal = os.path.join(pbs_temp_dir, os.path.split(normal)[1])
+        pbs_tempdir = '/scratch/{}_{}_{}'.format(tumor, normal, bed_name)
+        pbs_temp_tumor = os.path.join(pbs_tempdir, '{}.bam'.format(normal))
+        pbs_temp_normal = os.path.join(pbs_tempdir, '{}.bam'.format(tumor))
+        pbs_tumor_sorted = os.path.join(pbs_tempdir, 
+                                        '{}_sorted.bam'.format(normal))
+        pbs_normal_sorted = os.path.join(pbs_tempdir, 
+                                         '{}_sorted.bam'.format(tumor))
         with open(pbs, 'w') as f:
             f.write('#!/bin/bash\n\n')
             f.write('\n'.join(['#PBS -q high', 
-                               '#PBS -N {}_{}_{}'.format(tumor_id, normal_id,
+                               '#PBS -N {}_{}_{}'.format(tumor, normal,
                                                          bed_name),
                                '#PBS -l nodes=1:ppn=8',
                                '#PBS -o {}'.format(pbs_out),
-                               '#PBS -e {}'.format(pbs_err)]) + '\n')
+                               '#PBS -e {}'.format(pbs_err)]) + '\n\n')
+            f.write('\n'.join(['mkdir -p {}'.format(pbs_tempdir),
+                               'cd {}'.format(pbs_tempdir)]) + '\n\n')
             # Copy bam files to scratch.
-            f.write('\n'.join(['rsync -avz {} {}'.format(tumor, pbs_temp_tumor),
-                               'rsync -avz {} {}'.format(normal, 
+            f.write('\n'.join(['rsync -avz {} {}'.format(tumor_bam, 
+                                                         pbs_temp_tumor),
+                               'rsync -avz {} {}'.format(normal_bam, 
                                                          pbs_temp_normal)]) 
-                    + '\n')
+                    + '\n\n')
+            f.write('samtools sort -o {} tempt > {}\n'.format(pbs_temp_tumor,
+                                                              pbs_tumor_sorted))
+            f.write('samtools sort -o {} tempn > {}\n\n'.format(pbs_temp_normal,
+                                                                pbs_normal_sorted))
+            f.write('samtools index {}\n'.format(pbs_tumor_sorted))
+            f.write('samtools index {}\n\n'.format(pbs_normal_sorted))
             # Run mutect.
             f.write('\\\n'.join(['{} -jar {}'.format(self.java, self.mutect),
                                  '\t-T MuTect',
@@ -433,13 +478,14 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                                  '\t-R {}'.format(self.fasta),
                                  '\t--dbsnp {}'.format(self.dbsnp),
                                  '\t--cosmic {}'.format(self.cosmic),
-                                 '\t-I:normal {}'.format(pbs_temp_normal),
-                                 '\t-I:tumor {}'.format(pbs_temp_tumor),
+                                 '\t-I:normal {}'.format(pbs_normal_sorted),
+                                 '\t-I:tumor {}'.format(pbs_tumor_sorted),
                                  '\t--out out.txt',
-                                 '\t--coverage_file out.wig']) + '\n')
+                                 '\t--coverage_file out.wig']) + '\n\n')
             # Copy results to analysis_dir.
             f.write('\n'.join(['rsync -avz out.txt {}'.format(out),
-                               'rsync -avz out.wig {}'.format(wig)]) + '\n')
+                               'rsync -avz out.wig {}'.format(wig)]) + '\n\n')
             # Remove bam files and temporary directory on scratch.
-            f.write('rm -r {} {} {}\n'.format(tumor, normal, pbs_temp_dir))
+            f.write('rm -r {} {} {}\n'.format(tumor_bam, normal_bam, 
+                                              pbs_tempdir))
         return pbs
