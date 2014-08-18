@@ -22,6 +22,7 @@ def bed_to_samtools_intervals(bed):
         vals = line.split('\t')
         intervals.append('{}:{}-{}'.format(vals[0], vals[1], vals[2]))
         line = f.readline().strip()
+    f.close()
     return intervals
 
 class GTFuseBam:
@@ -231,8 +232,8 @@ class ReadsFromIntervalsEngine:
     # intervals as the bam files are created and the engine_fnc parameter which
     # executes an arbitrary function every time the engine cycles.
 
-    def __init__(self, analysis_ids, bed, bam_outdir='.', threads=10,
-                 sleeptime=10, bam_fnc=None, engine_fnc=None):
+    def __init__(self, analysis_ids, bed, bam_outdir='.', bed_name=None,
+                 threads=10, sleeptime=10, bam_fnc=None, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -244,6 +245,9 @@ class ReadsFromIntervalsEngine:
             Bed file with intervals.
         bam_outdir : directory
             Directory to write bam files to.
+        bed_name : str
+            Name of the bed file containing the intervals. Used to name output
+            files. If not provided, defaults to the file name of the bed file.
         threads : int
             Number of different processes/threads to use.
         sleeptime : int
@@ -271,7 +275,10 @@ class ReadsFromIntervalsEngine:
         # Intervals in the format 1:20-200 etc. as a list.
         self.intervals = bed_to_samtools_intervals(intervals)
         # Bed file name
-        self.bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
+        if not bed_name:
+            self.bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
+        else:
+            self.bed_name = bed_name
         # analysis_ids that the engine has started getting reads for.
         self.reads_started = []
         # analysis_ids that the engine has not started getting reads for.
@@ -353,7 +360,7 @@ class ReadsFromIntervalsEngine:
         bam_path = os.path.join(self.bam_outdir,
                                 '{}_{}.bam'.format(self.bed_name, analysis_id))
         gtfuse_bam = GTFuseBam(analysis_id)
-        bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_name)
+        bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
         gtfuse_bam.unmount()
         self.queue.put(bam)
 
@@ -392,9 +399,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # which intervals have been completed.
 
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
-                 cosmic, external_server='flc.ucsd.edu', variant_outdir='.',
-                 bam_outdir='.', threads=10, sleeptime=10, bam_fnc=None,
-                 engine_fnc=None):
+                 cosmic, name=None, external_server='flc.ucsd.edu',
+                 variant_outdir='.', bam_outdir='.', threads=10, sleeptime=10,
+                 bam_fnc=None, variant_engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -415,6 +422,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             Path to dbsnp vcf.
         cosmic : path
             Path to cosmic vcf.
+        name : str
+            Name of the intervals that we are calling variants for with this
+            engine. Used to name output files. Defaults to bed file name if not
+            provided as argument.
         external_server : hostname
             Hostname of external server. Username assumed to be the same.
             Assumed to have access through key.
@@ -431,29 +442,142 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             made. For instance, you could make a function that uses the bam file
             path as input for variant calling, etc. This function is called as
             soon as the engine knows that the bam file is created.
+        variant_engine_fnc : function
+            Function to execute every time the engine cycles (aka every
+            sleeptime number of seconds while the engine is running). 
 
         """
         self.tumor_normal_ids = tumor_normal_ids
-        analysis_ids = self.get_id_list()
+        analysis_ids = self._get_id_list()
         # Paths to various files needed for mutect.
         self.java = java
         self.mutect = mutect
         self.fasta = fasta
         self.dbsnp = dbsnp
         self.cosmic = cosmic
+        if not name:
+            self.name = os.path.splitext(os.path.split(bed)[1])[0]
+        else:
+            self.name = name
+        # The ReadsFromIntervalsEngine has engine_fnc which I set here as a
+        # function that does variant calling. However, variant_engine_fnc allows
+        # for another function to run inside of engine_fnc. This allows for more
+        # things to be chained together. It's turtles all the way down!
+        self.variant_engine_fnc = variant_engine_fnc
         # External server to submit jobs to.
         self.external_server = external_server
         # Directory to store variant calling results.
         self.variant_outdir = variant_outdir
         # analysis_ids that we have begun calling variants for.
         self.variant_calling_started = []
-        ReadsFromIntervalsEngine.__init__(self, analysis_ids, bed,
-                                          bam_outdir=bam_outdir,
-                                          threads=threads, sleeptime=sleeptime,
-                                          engine_fnc=self.variant_calling_worker
-                                         )
+        # Directory that holds information about this variant calling run.
+        self.infodir = os.path.join(bam_outdir, self.name)
+        self.html_status = os.path.join(
+            self.infodir, '{}_status.html'
+        )
+        self._setup()
+        ReadsFromIntervalsEngine.__init__(
+            self, analysis_ids, bed, bam_outdir=bam_outdir, bed_name=self.name,
+            threads=threads, sleeptime=sleeptime,
+            engine_fnc=self._variant_calling_worker
+        )
+    
+    def _setup(self):
+        """
+        Check whether a varaiant calling job with this name has been run before.
+        If so, check to make sure we have the same intervals here and pick up
+        where we left off. If this is the first time we've run variant calling
+        for these intervals, make a directory to hold some information about
+        this variant calling run and populate it.
+        """
+        if os.path.exists(self.infodir):
+            self._exist_setup()
+        else:
+            self._not_exist_setup()
 
-    def get_id_list(self):
+    def _make_html_status(self):
+        import pandas as pd
+        index = []
+        tumors = self.analysis_ids[0::2]
+        tumors.reverse()
+        normals = self.analysis_ids[1::2]
+        normals.reverse()
+        for i, t in enumerate(tumors):
+            n = normals[i]
+            index.append('{} & {}'.format(t, n))
+        columns = ['tumor reads', 'normal reads', 'variant calling']
+        df = pd.DataFrame(index=index, columns=columns)
+        df.to_html(self.html_status)
+        f = open(self.html_status, 'r')
+        lines = f.readlines()
+        f.close()
+        self.update_html_status()
+
+    def _update_html_status(self):
+        import pandas as pd
+        df = pd.read_html(self.html_status)[0]
+        pairs_finished = 0
+        for t in self.tumor_normal.keys():
+            n = self.tumor_normal[t]
+            ind = '{} & {}'.format(t, n)
+            if t in self.reads_finished:
+                df.ix[ind, 'tumor_reads'] = 'finished'
+            if n in self.reads_finished:
+                df.ix[ind, 'normal_reads'] = 'finished'
+            if os.path.exists(TODO):
+                df.ix[ind, 'variant calling'] = 'finished'
+                pairs_finished += 1
+        df.to_html(self.html_status)
+        f = open(self.html_status, 'w')
+        header = '<head>\n<title>{} status</title></head>'.format(self.name)
+        top = ['<p>Status of {}<br>'.format(self.name) + 
+               'Currently running: {}<br>'.format(['no', 'yes'][self.running]) +
+               'Pairs finished: :,{:,}<br>'.format(pairs_finished) + 
+               'Pairs remaining: {:,}</p>'.format(len(self.analysis_ids) / 2 -
+                                                  pairs_finished)]
+        lines = ['\n'.join(top) + '\n\n'] + lines
+        f.close()
+
+    def _exist_setup(self):
+        # Update analysis ids based on which samples have already been
+        # completed.
+        # TODO: Need to set self.remaining, self.variant_calling_started
+        # # analysis_ids that the engine has started getting reads for.
+        # self.reads_started = []
+        # # analysis_ids that the engine has not started getting reads for.
+        # self.reads_remaining = analysis_ids
+        # # analysis_ids that have finished.
+        # self.reads_finished = []
+        import pandas as pd
+        df = pd.read_html(self.html_status)[0]
+        for t in self.tumor_normal.keys():
+            n = self.tumor_normal[t]
+            ind = '{} & {}'.format(t, n)
+            # TODO: update conditional statements, add variant calling
+            if t in self.reads_finished:
+                self.reads_started.append(t)
+                self.reads_finished.append(t)
+            else:
+                self.reads_remaining.append(t)
+            if n in self.reads_finished:
+                self.reads_started.append(n)
+                self.reads_finished.append(n)
+            else:
+                self.reads_remaining.append(n)
+            if os.path.exists(TODO):
+                df.ix[ind, 'variant calling'] = 'finished'
+                pairs_finished += 1
+
+    def _not_exist_setup(self):
+        import pandas as pd
+        import shutil
+        os.makedirs(self.infodir)
+        # Copy the bed file into the info directory for posterity.
+        shutil.copy(self.bed, 
+                    os.path.join(self.infodir, '{}.bed'.format(name)))
+        self._make_html_status()
+
+    def _get_id_list(self):
         """Make list of ids where the tumor and normal ids as defined by
         self.tumor_normal_ids are next to each other in the list."""
         out = []
@@ -462,25 +586,29 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             out.append(self.tumor_normal_ids[k])
         return out
 
-    def variant_calling_worker(self):
+    def _variant_calling_worker(self):
         import sys
-        for t in ((set(self.reads_finished) - set(self.variant_calling_started)) &
+        for t in ((set(self.reads_finished) - 
+                   set(self.variant_calling_started)) &
                   set(self.tumor_normal_ids.keys())):
             n = self.tumor_normal_ids[t]
             if n in self.reads_finished:
-                self.call_variants(t, n)
+                self._call_variants(t, n)
                 self.variant_calling_started.append(t)
                 self.variant_calling_started.append(n)
+        if (type(self.variant_engine_fnc) == types.FunctionType or
+            inspect.ismethod(self.variant_engine_fnc)):
+            self.variant_engine_fnc()
 
-    def call_variants(self, tumor, normal):
-        pbs = self.write_pbs_script(tumor, normal)
-        self.submit_pbs_script(pbs)
+    def _call_variants(self, tumor, normal):
+        pbs = self._write_pbs_script(tumor, normal)
+        self._submit_pbs_script(pbs)
 
-    def submit_pbs_script(self, pbs):
+    def _submit_pbs_script(self, pbs):
         import subprocess
         subprocess.check_call(['ssh', self.external_server, 'qsub', pbs])
 
-    def write_pbs_script(self, tumor, normal):
+    def _write_pbs_script(self, tumor, normal):
         tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
         normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
         # Make directory to store results if it doesn't already exist.
@@ -490,13 +618,12 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             os.makedirs(analysis_dir)
         except OSError:
             pass
-        bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
-        out = os.path.join(analysis_dir, '{}_variants.txt'.format(bed_name))
-        wig = os.path.join(analysis_dir, '{}.wig'.format(bed_name))
-        pbs = os.path.join(analysis_dir, '{}_mutect.pbs'.format(bed_name))
-        pbs_out = '{}_mutect.out'.format(os.path.join(analysis_dir, bed_name))
-        pbs_err = '{}_mutect.err'.format(os.path.join(analysis_dir, bed_name))
-        pbs_tempdir = '/scratch/{}_{}_{}'.format(tumor, normal, bed_name)
+        out = os.path.join(analysis_dir, '{}_variants.txt'.format(self.name))
+        wig = os.path.join(analysis_dir, '{}.wig'.format(self.name))
+        pbs = os.path.join(analysis_dir, '{}_mutect.pbs'.format(self.name))
+        pbs_out = '{}_mutect.out'.format(os.path.join(analysis_dir, self.name))
+        pbs_err = '{}_mutect.err'.format(os.path.join(analysis_dir, self.name))
+        pbs_tempdir = '/scratch/{}_{}_{}'.format(tumor, normal, self.name)
         pbs_temp_tumor = os.path.join(pbs_tempdir, '{}.bam'.format(normal))
         pbs_temp_normal = os.path.join(pbs_tempdir, '{}.bam'.format(tumor))
         pbs_tumor_sorted = os.path.join(pbs_tempdir, 
@@ -507,7 +634,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             f.write('#!/bin/bash\n\n')
             f.write('\n'.join(['#PBS -q high', 
                                '#PBS -N {}_{}_{}'.format(tumor, normal,
-                                                         bed_name),
+                                                         self.name),
                                '#PBS -l nodes=1:ppn=8',
                                '#PBS -o {}'.format(pbs_out),
                                '#PBS -e {}'.format(pbs_err)]) + '\n\n')
@@ -519,10 +646,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                                'rsync -avz {} {}'.format(normal_bam, 
                                                          pbs_temp_normal)]) 
                     + '\n\n')
-            f.write('samtools sort -o {} tempt > {}\n'.format(pbs_temp_tumor,
-                                                              pbs_tumor_sorted))
-            f.write('samtools sort -o {} tempn > {}\n\n'.format(pbs_temp_normal,
-                                                                pbs_normal_sorted))
+            f.write(' '.join(['samtools', 'sort', '-o', pbs_temp_tumor, 'tempt',
+                              '>', pbs_tumor_sorted, '\n']))
+            f.write(' '.join(['samtools', 'sort', '-o', pbs_temp_normal,
+                              'tempn', '>', pbs_normal_sorted, '\n\n']))
             f.write('samtools index {}\n'.format(pbs_tumor_sorted))
             f.write('samtools index {}\n\n'.format(pbs_normal_sorted))
             # Run mutect.
