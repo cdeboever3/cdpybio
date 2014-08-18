@@ -25,7 +25,7 @@ def bed_to_samtools_intervals(bed):
     return intervals
 
 class GTFuseBam:
-    def __init__(self, analysis_id. mountpoint='/tmp',
+    def __init__(self, analysis_id, mountpoint='/tmp',
                  cache='/tmp/fusecache'):
         """
         Parameters
@@ -198,7 +198,7 @@ class ReadsFromIntervalsBam:
                     self.gtfuse_bam.unmount()
                     time.sleep(sleeptime)
                     self.gtfuse_bam.mount()
-            if t = tries:
+            if t == tries:
                 self.bad_intervals.append(self.intervals[i:i + max_intervals])
             temp_bams.append(temp_bam)
         if len(temp_bams) > 1:
@@ -393,7 +393,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
                  cosmic, external_server='flc.ucsd.edu', variant_outdir='.',
-                 bam_outdir='.', threads=10, sleeptime=10, bam_fnc=None):
+                 bam_outdir='.', threads=10, sleeptime=10, bam_fnc=None,
+                 engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
