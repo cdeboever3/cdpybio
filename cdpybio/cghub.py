@@ -388,15 +388,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # to the same filesystem as the server running the engine (hence the FLC
     # part of the name). This is specific to my use case but could easily
     # modified for other use cases.
-    
-    # TODO
-    # Some way to watch for jobs that finish. Maybe I can just watch to see when
-    # the output file is copied somewhere, then process it further? Or just not
-    # worry after I submit? It would be nice to know even if just for the
-    # purpose of monitoring progress. I would almost need another engine for
-    # this, and that might be fine. I can have a monitor engine that is separate
-    # of the GTFuse engine.  Something to keep track of which analysis_ids and
-    # which intervals have been completed.
 
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
                  cosmic, name=None, external_server='flc.ucsd.edu',
@@ -524,7 +515,11 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                 df.ix[ind, 'tumor_reads'] = 'finished'
             if n in self.reads_finished:
                 df.ix[ind, 'normal_reads'] = 'finished'
-            if os.path.exists(TODO):
+            analysis_dir = os.path.join(self.variant_outdir,
+                                        '{}_{}'.format(t, n))
+            varaints = os.path.join(analysis_dir, 
+                                    '{}_variants.txt'.format(self.name))
+            if os.path.exists(variants):
                 df.ix[ind, 'variant calling'] = 'finished'
                 pairs_finished += 1
         df.to_html(self.html_status)
@@ -541,32 +536,24 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def _exist_setup(self):
         # Update analysis ids based on which samples have already been
         # completed.
-        # TODO: Need to set self.remaining, self.variant_calling_started
-        # # analysis_ids that the engine has started getting reads for.
-        # self.reads_started = []
-        # # analysis_ids that the engine has not started getting reads for.
-        # self.reads_remaining = analysis_ids
-        # # analysis_ids that have finished.
-        # self.reads_finished = []
         import pandas as pd
         df = pd.read_html(self.html_status)[0]
         for t in self.tumor_normal.keys():
             n = self.tumor_normal[t]
             ind = '{} & {}'.format(t, n)
-            # TODO: update conditional statements, add variant calling
-            if t in self.reads_finished:
+            if df.ix[ind, 'tumor reads'] == 'finished':
                 self.reads_started.append(t)
                 self.reads_finished.append(t)
             else:
                 self.reads_remaining.append(t)
-            if n in self.reads_finished:
+            if df.ix[ind, 'normal reads'] == 'finished':
                 self.reads_started.append(n)
                 self.reads_finished.append(n)
             else:
                 self.reads_remaining.append(n)
-            if os.path.exists(TODO):
-                df.ix[ind, 'variant calling'] = 'finished'
-                pairs_finished += 1
+            if df.ix[ind, 'variant calling'] == 'finished':
+                self.variant_calling_started.append(t)
+                self.variant_calling_started.append(n)
 
     def _not_exist_setup(self):
         import pandas as pd
