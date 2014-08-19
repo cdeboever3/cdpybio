@@ -651,7 +651,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             self.variant_engine_fnc()
         self._update_html_status()
         # If the engine is done, wait until all variant calls are done.
-        if len(self.current_procs == 0) and self.stop_event.is_set():
+        if len(self.current_procs) == 0 and self.stop_event.is_set():
             df = pd.read_html(self.html_status,
                               index_col=0, header=0)[0]
             while set(df['variant calling']) != set(['finished']):
