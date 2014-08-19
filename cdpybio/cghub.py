@@ -26,8 +26,8 @@ def bed_to_samtools_intervals(bed):
     return intervals
 
 class GTFuseBam:
-    def __init__(self, analysis_id, mountpoint='/tmp',
-                 cache='/tmp/fusecache'):
+    def __init__(self, analysis_id, mountpoint='/tmp/[username]',
+                 cache='/tmp/[username]/fusecache'):
         """
         Parameters
         ----------
@@ -39,18 +39,25 @@ class GTFuseBam:
             Directory to store GTFuse cache files.
         
         """
+        import pwd
+        username = pwd.getpwuid(os.getuid()).pw_name
         self.analysis_id = analysis_id
+        if mountpoint == '/tmp/[username]':
+            mountpoint = '/tmp/{}'.format(username)
         self.mountpoint = mountpoint
+        if cache == '/tmp/[username]/fusecache':
+            cache = '/tmp/{}/fusecache'.format(username)
         self.cache = cache
         self._make_tempdir()
         self.bam = ''
         self.mounted = False
         self.mount()
 
-    def _make_tempdir():
+    def _make_tempdir(self):
         """Make a temp directory to hold the mounted bam file and allow us to 
         store other temp files."""
-        self.tempdir = os.path.join(self.mountpoint, self.analysis_id)
+        self.tempdir = os.path.join(self.mountpoint,
+                                    self.analysis_id)
         if not os.path.exists(self.tempdir):
             os.makedirs(self.tempdir)
 
@@ -77,10 +84,10 @@ class GTFuseBam:
         subprocess.check_call(['gtfuse', 
                                '--ssl-no-verify-ca',
                                '--cache-dir',
-                               cache,
+                               self.cache,
                                url,
                                mnt])
-        files = glob.glob('{}/{}/*'.format(mnt, analysis_id))
+        files = glob.glob('{}/{}/*'.format(mnt, self.analysis_id))
         bam = [ x for x in files if os.path.splitext(x)[1] == '.bam' ][0]
         self.bam = os.path.realpath(bam)
         self.mounted = True
@@ -180,8 +187,9 @@ class ReadsFromIntervalsBam:
         """
         import shutil
         import subprocess
+        import sys
         import time
-        if not self.gtfuse_bam.mounted():
+        if not self.gtfuse_bam.mounted:
             self.gtfuse_bam.mount()
         temp_bams = []
         for i in range(0, len(self.intervals), max_intervals):
@@ -194,6 +202,7 @@ class ReadsFromIntervalsBam:
             while t < tries:
                 try:
                     subprocess.check_call(c, shell=True)
+                    break
                 except subprocess.CalledProcessError:
                     t += 1
                     self.gtfuse_bam.unmount()
@@ -202,6 +211,8 @@ class ReadsFromIntervalsBam:
             if t == tries:
                 self.bad_intervals.append(self.intervals[i:i + max_intervals])
             temp_bams.append(temp_bam)
+            sys.stderr.write('Finished {} through {}\n'.format(i, i +
+                                                               max_intervals))
         if len(temp_bams) > 1:
             c = 'samtools merge -f {} {}'.format(self.bam,
                                                  ' '.join(temp_bams))
@@ -217,7 +228,7 @@ class ReadsFromIntervalsEngine:
     # something that could be monitored and controlled while running so that I
     # can gracefully exit a job that may take a long time. To do this, the
     # engine runs on a thread from the threading module. This thread can run in
-    # the background but I can set an event to stop it. The thread cretes
+    # the background but I can set an event to stop it. The thread creates
     # several more threads using the multiprocessing module. Each of the
     # multiprocessing threads mounts a bam file, gets the reads from the
     # intervals, and unmounts the bam file. When the engine is killed, the
@@ -233,7 +244,8 @@ class ReadsFromIntervalsEngine:
     # executes an arbitrary function every time the engine cycles.
 
     def __init__(self, analysis_ids, bed, bam_outdir='.', bed_name=None,
-                 threads=10, sleeptime=10, bam_fnc=None, engine_fnc=None):
+                 threads=10, sleeptime=10, reads_started=[], reads_finished=[],
+                 bam_fnc=None, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -252,6 +264,14 @@ class ReadsFromIntervalsEngine:
             Number of different processes/threads to use.
         sleeptime : int
             Number of seconds to sleep between engine updates.
+        reads_started : list
+            List of analysis IDs that we have already started getting reads for.
+            This is used when restarting a job that a previous engine was
+            working on.
+        reads_finished : list
+            List of analysis IDs that we have already obtained the reads for.
+            This is used when restarting a job that a previous engine was
+            working on.
         bam_fnc : function
             Function to apply to each bam file (path) after the bam file is
             made. For instance, you could make a function that uses the bam file
@@ -273,18 +293,20 @@ class ReadsFromIntervalsEngine:
         self.bam_fnc = bam_fnc
         self.engine_fnc = engine_fnc
         # Intervals in the format 1:20-200 etc. as a list.
-        self.intervals = bed_to_samtools_intervals(intervals)
+        self.intervals = bed_to_samtools_intervals(bed)
         # Bed file name
         if not bed_name:
             self.bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
         else:
             self.bed_name = bed_name
         # analysis_ids that the engine has started getting reads for.
-        self.reads_started = []
+        self.reads_started = reads_started
         # analysis_ids that the engine has not started getting reads for.
         self.reads_remaining = analysis_ids
         # analysis_ids that have finished.
-        self.reads_finished = []
+        self.reads_finished = reads_finished
+        for a in self.reads_finished:
+            self.reads_remaining.remove(a)
         self.current_procs = []
         self.old_procs = []
         # ReadsFromIntervalsBam objects.
@@ -439,7 +461,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
         """
         self.tumor_normal_ids = tumor_normal_ids
-        analysis_ids = self._get_id_list()
+        self.bed = bed
+        self.analysis_ids = self._get_id_list()
         # Paths to various files needed for mutect.
         self.java = java
         self.mutect = mutect
@@ -462,16 +485,20 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         # analysis_ids that we have begun calling variants for.
         self.variant_calling_started = []
         # Directory that holds information about this variant calling run.
-        self.infodir = os.path.join(bam_outdir, self.name)
+        self.infodir = os.path.join(bam_outdir,
+                                    '{}_variant_calling'.format(self.name))
         self.html_status = os.path.join(
-            self.infodir, '{}_status.html'
+            self.infodir, '{}_status.html'.format(self.name)
         )
+        self.running = False
         self._setup()
-        ReadsFromIntervalsEngine.__init__(
-            self, analysis_ids, bed, bam_outdir=bam_outdir, bed_name=self.name,
-            threads=threads, sleeptime=sleeptime,
-            engine_fnc=self._variant_calling_worker
-        )
+        # ReadsFromIntervalsEngine.__init__(
+        #     self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
+        #     bed_name=self.name, threads=threads, sleeptime=sleeptime,
+        #     reads_started=self.reads_started,
+        #     reads_finished=self.reads_finished,
+        #     engine_fnc=self._variant_calling_worker
+        # )
     
     def _setup(self):
         """
@@ -481,76 +508,27 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         for these intervals, make a directory to hold some information about
         this variant calling run and populate it.
         """
-        if os.path.exists(self.infodir):
+        self.reads_started = []
+        self.reads_finished = []
+        if os.path.exists(self.html_status):
             self._exist_setup()
         else:
             self._not_exist_setup()
-
-    def _make_html_status(self):
-        import pandas as pd
-        index = []
-        tumors = self.analysis_ids[0::2]
-        tumors.reverse()
-        normals = self.analysis_ids[1::2]
-        normals.reverse()
-        for i, t in enumerate(tumors):
-            n = normals[i]
-            index.append('{} & {}'.format(t, n))
-        columns = ['tumor reads', 'normal reads', 'variant calling']
-        df = pd.DataFrame(index=index, columns=columns)
-        df.to_html(self.html_status)
-        f = open(self.html_status, 'r')
-        lines = f.readlines()
-        f.close()
-        self.update_html_status()
-
-    def _update_html_status(self):
-        import pandas as pd
-        df = pd.read_html(self.html_status)[0]
-        pairs_finished = 0
-        for t in self.tumor_normal.keys():
-            n = self.tumor_normal[t]
-            ind = '{} & {}'.format(t, n)
-            if t in self.reads_finished:
-                df.ix[ind, 'tumor_reads'] = 'finished'
-            if n in self.reads_finished:
-                df.ix[ind, 'normal_reads'] = 'finished'
-            analysis_dir = os.path.join(self.variant_outdir,
-                                        '{}_{}'.format(t, n))
-            varaints = os.path.join(analysis_dir, 
-                                    '{}_variants.txt'.format(self.name))
-            if os.path.exists(variants):
-                df.ix[ind, 'variant calling'] = 'finished'
-                pairs_finished += 1
-        df.to_html(self.html_status)
-        f = open(self.html_status, 'w')
-        header = '<head>\n<title>{} status</title></head>'.format(self.name)
-        top = ['<p>Status of {}<br>'.format(self.name) + 
-               'Currently running: {}<br>'.format(['no', 'yes'][self.running]) +
-               'Pairs finished: :,{:,}<br>'.format(pairs_finished) + 
-               'Pairs remaining: {:,}</p>'.format(len(self.analysis_ids) / 2 -
-                                                  pairs_finished)]
-        lines = ['\n'.join(top) + '\n\n'] + lines
-        f.close()
 
     def _exist_setup(self):
         # Update analysis ids based on which samples have already been
         # completed.
         import pandas as pd
         df = pd.read_html(self.html_status)[0]
-        for t in self.tumor_normal.keys():
-            n = self.tumor_normal[t]
-            ind = '{} & {}'.format(t, n)
+        for t in self.tumor_normal_ids.keys():
+            n = self.tumor_normal_ids[t]
+            ind = '{}.{}'.format(t, n)
             if df.ix[ind, 'tumor reads'] == 'finished':
                 self.reads_started.append(t)
                 self.reads_finished.append(t)
-            else:
-                self.reads_remaining.append(t)
             if df.ix[ind, 'normal reads'] == 'finished':
                 self.reads_started.append(n)
                 self.reads_finished.append(n)
-            else:
-                self.reads_remaining.append(n)
             if df.ix[ind, 'variant calling'] == 'finished':
                 self.variant_calling_started.append(t)
                 self.variant_calling_started.append(n)
@@ -561,8 +539,60 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         os.makedirs(self.infodir)
         # Copy the bed file into the info directory for posterity.
         shutil.copy(self.bed, 
-                    os.path.join(self.infodir, '{}.bed'.format(name)))
+                    os.path.join(self.infodir, '{}.bed'.format(self.name)))
         self._make_html_status()
+
+    def _make_html_status(self):
+        import pandas as pd
+        index = []
+        tumors = self.analysis_ids[0::2]
+        tumors.reverse()
+        normals = self.analysis_ids[1::2]
+        normals.reverse()
+        for i, t in enumerate(tumors):
+            n = normals[i]
+            index.append('{}.{}'.format(t, n))
+        columns = ['tumor reads', 'normal reads', 'variant calling']
+        df = pd.DataFrame(index=index, columns=columns)
+        df.to_html(self.html_status, na_rep='')
+        self._update_html_status()
+
+    def _update_html_status(self):
+        import pandas as pd
+        df = pd.read_html(self.html_status,
+                         index_col=0, header=0)[0]
+        pairs_finished = 0
+        for t in self.tumor_normal_ids.keys():
+            n = self.tumor_normal_ids[t]
+            ind = '{}.{}'.format(t, n)
+            if t in self.reads_finished:
+                df.ix[ind, 'tumor_reads'] = 'finished'
+            if n in self.reads_finished:
+                df.ix[ind, 'normal_reads'] = 'finished'
+            analysis_dir = os.path.join(self.variant_outdir,
+                                        '{}_{}'.format(t, n))
+            variants = os.path.join(analysis_dir, 
+                                    '{}_variants.txt'.format(self.name))
+            if os.path.exists(variants):
+                df.ix[ind, 'variant calling'] = 'finished'
+                pairs_finished += 1
+        df.to_html(self.html_status, na_rep='')
+        f = open(self.html_status, 'r')
+        lines = f.readlines()
+        f.close()
+        f = open(self.html_status, 'w')
+        head = '<head>\n<title>{} status</title></head>\n'.format(self.name)
+        header = ('<header>\n<h1>' + 
+                  'Status of variant calling for {}'.format(self.name) + 
+                  '</h1>\n</header>\n')
+        r = ['no', 'yes'][self.running]
+        para = ['<p>Currently running: {}<br>'.format(r),
+                'Pairs finished: {:,}<br>'.format(pairs_finished),
+                'Pairs remaining: {:,}</p>'.format(len(self.analysis_ids) / 2 -
+                                                   pairs_finished)]
+        lines = [head, header, '\n'.join(para) + '\n\n'] + lines
+        f.write(''.join(lines))
+        f.close()
 
     def _get_id_list(self):
         """Make list of ids where the tumor and normal ids as defined by
@@ -574,7 +604,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         return out
 
     def _variant_calling_worker(self):
+        import inspect
         import sys
+        import types
         for t in ((set(self.reads_finished) - 
                    set(self.variant_calling_started)) &
                   set(self.tumor_normal_ids.keys())):
