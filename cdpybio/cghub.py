@@ -185,18 +185,18 @@ class ReadsFromIntervalsBam:
             on the first try.
         
         """
+        import copy
         import shutil
         import subprocess
         import time
         if not self.gtfuse_bam.mounted:
             self.gtfuse_bam.mount()
-        temp_bams = []
         for i in range(0, len(self.intervals), max_intervals):
             ints = ' '.join(self.intervals[i:i + max_intervals])
-            temp_bam = os.path.join(self.tempdir, 
-                                    '{}_{}.bam'.format(self.analysis_id, i))
-            c = 'samtools view -b {} {} > {}'.format(self.gtfuse_bam.bam, ints, 
-                                                     temp_bam)
+            temp_bam = os.path.join(
+                self.tempdir, '{}_{}.bam'.format(self.analysis_id, i))
+            c = 'samtools view -b {} {} > {}'.format(
+                self.gtfuse_bam.bam, ints, temp_bam)
             t = 0
             while t < tries:
                 try:
@@ -209,15 +209,23 @@ class ReadsFromIntervalsBam:
                     self.gtfuse_bam.mount()
             if t == tries:
                 self.bad_intervals.append(self.intervals[i:i + max_intervals])
-            temp_bams.append(temp_bam)
-        if len(temp_bams) > 1:
-            c = 'samtools merge -f {} {}'.format(self.bam,
-                                                 ' '.join(temp_bams))
-            subprocess.check_call(c, shell=True)
-            for b in temp_bams:
-                os.remove(b)
-        else:
-            shutil.move(temp_bams[0], self.bam)
+            else:
+                if i == 0:
+                    merged_bam = os.path.join(
+                        self.tempdir, '{}_{}_merged.bam'.format(
+                            self.analysis_id, i))
+                    shutil.move(temp_bam, merged_bam)
+                else:
+                    old_merged_bam = copy.deepcopy(merged_bam)
+                    merged_bam = os.path.join(
+                        self.tempdir, '{}_{}_merged.bam'.format(
+                            self.analysis_id, i))
+                    c = 'samtools merge -f {} {} {}'.format(
+                        merged_bam, old_merged_bam, temp_bam)
+                    subprocess.check_call(c, shell=True)
+                    os.remove(old_merged_bam)
+                    os.remove(temp_bam)
+        shutil.move(merged_bam, self.bam)
 
 class ReadsFromIntervalsEngine:
     # This class creates an "engine" that runs in the background and gets reads
