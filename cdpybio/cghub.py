@@ -492,13 +492,13 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         )
         self.running = False
         self._setup()
-        # ReadsFromIntervalsEngine.__init__(
-        #     self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
-        #     bed_name=self.name, threads=threads, sleeptime=sleeptime,
-        #     reads_started=self.reads_started,
-        #     reads_finished=self.reads_finished,
-        #     engine_fnc=self._variant_calling_worker
-        # )
+        ReadsFromIntervalsEngine.__init__(
+            self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
+            bed_name=self.name, threads=threads, sleeptime=sleeptime,
+            reads_started=self.reads_started,
+            reads_finished=self.reads_finished,
+            engine_fnc=self._variant_calling_worker
+        )
     
     def _setup(self):
         """
