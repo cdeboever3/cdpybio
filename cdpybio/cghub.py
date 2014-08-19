@@ -352,6 +352,9 @@ class ReadsFromIntervalsEngine:
                 inspect.ismethod(self.engine_fnc)):
                 self.engine_fnc()
             time.sleep(self.sleeptime)
+        if (type(self.engine_fnc) == types.FunctionType or
+            inspect.ismethod(self.engine_fnc)):
+            self.engine_fnc()
         sys.stderr.write('Jobs concluded, engine stopped.\n')
         self.running = False
 
@@ -398,6 +401,28 @@ class ReadsFromIntervalsEngine:
         while (len(self.current_procs) < self.threads and 
                len(self.reads_remaining) > 0):
             self.new_proc()
+
+class TumorNormalVariantCall:
+    def __init__(self, tumor_id, normal_id, intervals_name, bam_outdir=',',
+                 variant_outdir='.'):
+        self.tumor_id = tumor_id
+        self.normal_id = normal_id
+        self.intervals_name = intervals_name
+        self.tumor_bam = os.path.join(bam_outdir, '{}_{}.bam'.format(
+            self.intervals_name, self.tumor_id))
+        self.normal_bam = os.path.join(bam_outdir, '{}_{}.bam'.format(
+            self.intervals_name, self.normal_id))
+        self.name = '{}_{}'.format(self.tumor_id, self.normal_id)
+        self.variant_dir = os.path.join(variant_outdir, self.name)
+        self.variants = os.path.join(self.variant_dir, 
+                                     '{}_variants.txt'.format(self.name))
+        self.wig = os.path.join(self.variant_dir, '{}.wig'.format(self.name))
+        self.pbs = os.path.join(self.variant_dir, 
+                                '{}_mutect.pbs'.format(self.name))
+        self.stdout = '{}_mutect.out'.format(os.path.join(self.variant_dir, 
+                                                          self.name))
+        self.stderr = '{}_mutect.err'.format(os.path.join(self.variant_dir, 
+                                                          self.name))
 
 class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     # This class extends the ReadsFromIntervalsEngine to both get the bam file
@@ -479,7 +504,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         self.external_server = external_server
         # Directory to store variant calling results.
         self.variant_outdir = variant_outdir
-        # analysis_ids that we have begun calling variants for.
+        self.bam_outdir = bam_outdir
+        # TumorNormalVariantCall objects that we need to call variants for.
+        self._init_vcs()
+        # TumorNormalVariantCalls that we have begun calling variants for.
         self.variant_calling_started = []
         # Directory that holds information about this variant calling run.
         self.infodir = os.path.join(bam_outdir,
@@ -496,6 +524,16 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             reads_finished=self.reads_finished,
             engine_fnc=self._variant_calling_worker
         )
+
+    def _init_vcs(self):
+        self.tumor_normal_variant_calls = []
+        for t in self.tumor_normal_ids.keys():
+            n = self.tumor_normal_ids[t]
+            vc = TumorNormalVariantCall(t, n,
+                                        self.name,
+                                        bam_outdir=self.bam_outdir,
+                                        variant_outdir=self.variant_outdir)
+            self.tumor_normal_variant_calls.append(vc)
     
     def _setup(self):
         """
@@ -513,13 +551,16 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             self._not_exist_setup()
 
     def _exist_setup(self):
+        """Set up the engine given that an engine has already worked on these
+        samples and intervals in the past"""
         # Update analysis ids based on which samples have already been
         # completed.
         import pandas as pd
         df = pd.read_html(self.html_status)[0]
-        for t in self.tumor_normal_ids.keys():
-            n = self.tumor_normal_ids[t]
-            ind = '{}_{}'.format(t, n)
+        for vc in self.tumor_normal_variant_calls:
+            t = vc.tumor_id
+            n = vc.normal_id
+            ind = vc.name
             if df.ix[ind, 'tumor reads'] == 'finished':
                 self.reads_started.append(t)
                 self.reads_finished.append(t)
@@ -527,8 +568,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                 self.reads_started.append(n)
                 self.reads_finished.append(n)
             if df.ix[ind, 'variant calling'] == 'finished':
-                self.variant_calling_started.append(t)
-                self.variant_calling_started.append(n)
+                self.variant_calling_started.append(vc)
 
     def _not_exist_setup(self):
         import pandas as pd
@@ -542,13 +582,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def _make_html_status(self):
         import pandas as pd
         index = []
-        tumors = self.analysis_ids[0::2]
-        tumors.reverse()
-        normals = self.analysis_ids[1::2]
-        normals.reverse()
-        for i, t in enumerate(tumors):
-            n = normals[i]
-            index.append('{}_{}'.format(t, n))
+        tumors = [x.tumor_id for x in self.tumor_normal_variant_calls]
+        normals = [x.normal_id for x in self.tumor_normal_variant_calls]
+        for vc in self.tumor_normal_variant_calls:
+            index.append(vc.name)
         columns = ['tumor reads', 'normal reads', 'variant calling']
         df = pd.DataFrame(index=index, columns=columns)
         df.to_html(self.html_status, na_rep='')
@@ -559,18 +596,15 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         df = pd.read_html(self.html_status,
                           index_col=0, header=0)[0]
         pairs_finished = 0
-        for t in self.tumor_normal_ids.keys():
-            n = self.tumor_normal_ids[t]
-            ind = '{}_{}'.format(t, n)
+        for vc in self.tumor_normal_variant_calls:
+            t = vc.tumor_id
+            n = vc.normal_id
+            ind = vc.name
             if t in self.reads_finished:
                 df.ix[ind, 'tumor reads'] = 'finished'
             if n in self.reads_finished:
                 df.ix[ind, 'normal reads'] = 'finished'
-            analysis_dir = os.path.join(self.variant_outdir,
-                                        '{}_{}'.format(t, n))
-            variants = os.path.join(analysis_dir, 
-                                    '{}_variants.txt'.format(self.name))
-            if os.path.exists(variants):
+            if os.path.exists(vc.variants):
                 df.ix[ind, 'variant calling'] = 'finished'
                 pairs_finished += 1
         df.to_html(self.html_status, na_rep='')
@@ -580,7 +614,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         f = open(self.html_status, 'w')
         head = '<head>\n<title>{} status</title></head>\n'.format(self.name)
         header = ('<header>\n<h1>' + 
-                  'Status of variant calling for {}'.format(self.name) + 
+                  'Status of variant calling for "{}"'.format(self.name) + 
                   '</h1>\n</header>\n')
         r = ['no', 'yes'][self.running]
         para = ['<p>Currently running: {}<br>'.format(r),
@@ -604,63 +638,70 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         import inspect
         import sys
         import types
-        for t in ((set(self.reads_finished) - 
-                   set(self.variant_calling_started)) &
-                  set(self.tumor_normal_ids.keys())):
-            n = self.tumor_normal_ids[t]
-            if n in self.reads_finished:
-                self._call_variants(t, n)
-                self.variant_calling_started.append(t)
-                self.variant_calling_started.append(n)
+        vc_started = set([ x.tumor_id for x in self.variant_calling_started])
+        for vc in (set(self.tumor_normal_variant_calls) -
+                   set(self.variant_calling_started)):
+            t = vc.tumor_id
+            n = vc.normal_id
+            if (t in self.reads_finished) and (n in self.reads_finished):
+                self._call_variants(vc)
+                self.variant_calling_started.append(vc)
         if (type(self.variant_engine_fnc) == types.FunctionType or
             inspect.ismethod(self.variant_engine_fnc)):
             self.variant_engine_fnc()
         self._update_html_status()
+        # If the engine is done, wait until all variant calls are done.
+        if len(self.current_procs == 0) and self.stop_event.is_set():
+            df = pd.read_html(self.html_status,
+                              index_col=0, header=0)[0]
+            while set(df['variant calling']) != set(['finished']):
+                time.sleep(self.sleeptime)    
+                self._update_html_status()
+                df = pd.read_html(self.html_status,
+                                  index_col=0, header=0)[0]
 
-    def _call_variants(self, tumor, normal):
-        pbs = self._write_pbs_script(tumor, normal)
-        self._submit_pbs_script(pbs)
+    def _call_variants(self, vc):
+        self._write_pbs_script(vc)
+        self._submit_pbs_script(vc)
 
-    def _submit_pbs_script(self, pbs):
+    def _submit_pbs_script(self, vc):
         import subprocess
-        subprocess.check_call(['ssh', self.external_server, 'qsub', pbs])
+        subprocess.check_call(['ssh', self.external_server, 'qsub', vc.pbs])
 
-    def _write_pbs_script(self, tumor, normal):
-        tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
-        normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
+    def _write_pbs_script(self, vc):
+        # tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
+        # normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
         # Make directory to store results if it doesn't already exist.
-        analysis_dir = os.path.join(self.variant_outdir,
-                                    '{}_{}'.format(tumor, normal))
         try:
-            os.makedirs(analysis_dir)
+            os.makedirs(vc.variant_dir)
         except OSError:
             pass
-        out = os.path.join(analysis_dir, '{}_variants.txt'.format(self.name))
-        wig = os.path.join(analysis_dir, '{}.wig'.format(self.name))
-        pbs = os.path.join(analysis_dir, '{}_mutect.pbs'.format(self.name))
-        pbs_out = '{}_mutect.out'.format(os.path.join(analysis_dir, self.name))
-        pbs_err = '{}_mutect.err'.format(os.path.join(analysis_dir, self.name))
-        pbs_tempdir = '/scratch/{}_{}_{}'.format(tumor, normal, self.name)
-        pbs_temp_tumor = os.path.join(pbs_tempdir, '{}.bam'.format(normal))
-        pbs_temp_normal = os.path.join(pbs_tempdir, '{}.bam'.format(tumor))
+        pbs_tempdir = '/scratch/{}_{}_{}'.format(vc.tumor_id,
+                                                 vc.normal_id,
+                                                 vc.intervals_name)
+        pbs_temp_tumor = os.path.join(pbs_tempdir,
+                                      '{}.bam'.format(vc.normal_id))
+        pbs_temp_normal = os.path.join(pbs_tempdir, 
+                                       '{}.bam'.format(vc.tumor_id))
         pbs_tumor_sorted = os.path.join(pbs_tempdir, 
-                                        '{}_sorted.bam'.format(normal))
+                                        '{}_sorted.bam'.format(vc.normal_id))
         pbs_normal_sorted = os.path.join(pbs_tempdir, 
-                                         '{}_sorted.bam'.format(tumor))
-        with open(pbs, 'w') as f:
+                                         '{}_sorted.bam'.format(vc.tumor_id))
+        with open(vc.pbs, 'w') as f:
             f.write('#!/bin/bash\n\n')
             f.write('\n'.join(['#PBS -q high', 
-                               '#PBS -N {}_{}_{}'.format(tumor, normal,
-                                                         self.name),
+                               '#PBS -N {}_{}_{}'.format(vc.tumor_id, 
+                                                         vc.normal_id,
+                                                         vc.name),
                                '#PBS -l nodes=1:ppn=8',
-                               '#PBS -o {}'.format(pbs_out),
-                               '#PBS -e {}'.format(pbs_err)]) + '\n\n')
+                               '#PBS -o {}'.format(vc.stdout),
+                               '#PBS -e {}'.format(vc.stderr)]) + '\n\n')
             f.write('\n'.join(['mkdir -p {}'.format(pbs_tempdir),
                                'cd {}'.format(pbs_tempdir)]) + '\n\n')
             # Copy bam files to scratch.
-            f.write('\n'.join(['rsync -avz {} {}'.format(tumor_bam, 
+            f.write('\n'.join(['rsync -avz {} {}'.format(vc.tumor_bam, 
                                                          pbs_temp_tumor),
-                               'rsync -avz {} {}'.format(normal_bam, 
+                               'rsync -avz {} {}'.format(vc.normal_bam, 
                                                          pbs_temp_normal)]) 
                     + '\n\n')
             f.write(' '.join(['samtools', 'sort', '-o', pbs_temp_tumor, 'tempt',
@@ -681,9 +722,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                                  '\t--out out.txt',
                                  '\t--coverage_file out.wig']) + '\n\n')
             # Copy results to analysis_dir.
-            f.write('\n'.join(['rsync -avz out.txt {}'.format(out),
-                               'rsync -avz out.wig {}'.format(wig)]) + '\n\n')
+            f.write('\n'.join(['rsync -avz out.txt {}'.format(vc.variants),
+                               'rsync -avz out.wig {}'.format(vc.wig)]) 
+                    + '\n\n')
             # Remove bam files and temporary directory on scratch.
-            f.write('rm -r {} {} {}\n'.format(tumor_bam, normal_bam, 
+            f.write('rm -r {} {} {}\n'.format(vc.tumor_bam, vc.normal_bam, 
                                               pbs_tempdir))
-        return pbs
