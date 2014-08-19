@@ -92,7 +92,7 @@ class GTFuseBam:
         self.bam = os.path.realpath(bam)
         self.mounted = True
         
-    def unmount(self, tries=10, sleeptime=10):
+    def unmount(self, tries=100, sleeptime=10):
         """
         Unmount bam file mounted with GTFuse
         
@@ -117,19 +117,6 @@ class GTFuseBam:
         for f in files:
             if f != mnt:
                 os.remove(f)
-        # Now unmount bam.
-        t = 0
-        while t < tries:
-            try:
-                subprocess.call('fusermount -u {}'.format(mnt),
-                                shell=True)
-                break
-            except OSError:
-                time.sleep(sleeptime)
-                t += 1
-    
-        os.rmdir(mnt)
-        os.rmdir(os.path.split(mnt)[0])
         # Now clear cache.
         files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
         for f in files:
@@ -137,6 +124,19 @@ class GTFuseBam:
                 os.remove(f)
             elif os.path.isdir(f):
                 shutil.rmtree(f)
+        # Now unmount bam.
+        t = 0
+        while t < tries:
+            try:
+                subprocess.call('fusermount -u {}'.format(mnt),
+                                shell=True)
+                os.rmdir(mnt)
+                os.rmdir(os.path.split(mnt)[0])
+                break
+            except OSError:
+                time.sleep(sleeptime)
+                t += 1
+    
         self.mounted = False
 
 class ReadsFromIntervalsBam:
@@ -644,6 +644,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def _variant_calling_worker(self):
         import inspect
+        import pandas as pd
         import sys
         import types
         vc_started = set([ x.tumor_id for x in self.variant_calling_started])
