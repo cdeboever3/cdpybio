@@ -585,7 +585,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         r = ['no', 'yes'][self.running]
         para = ['<p>Currently running: {}<br>'.format(r),
                 'Pairs finished: {:,}<br>'.format(pairs_finished),
-                'Pairs remaining: {:,}</p>'.format(len(self.analysis_ids) / 2 -
+                'Pairs remaining: {:,}</p>'.format(len(self.tumor_normal_ids) - 
                                                    pairs_finished)]
         lines = [head, header, '\n'.join(para) + '\n\n'] + lines
         f.write(''.join(lines))
