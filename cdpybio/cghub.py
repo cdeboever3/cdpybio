@@ -557,7 +557,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def _update_html_status(self):
         import pandas as pd
         df = pd.read_html(self.html_status,
-                         index_col=0, header=0)[0]
+                          index_col=0, header=0)[0]
         pairs_finished = 0
         for t in self.tumor_normal_ids.keys():
             n = self.tumor_normal_ids[t]
