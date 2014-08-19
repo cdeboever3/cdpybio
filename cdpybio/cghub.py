@@ -187,7 +187,6 @@ class ReadsFromIntervalsBam:
         """
         import shutil
         import subprocess
-        import sys
         import time
         if not self.gtfuse_bam.mounted:
             self.gtfuse_bam.mount()
@@ -211,8 +210,6 @@ class ReadsFromIntervalsBam:
             if t == tries:
                 self.bad_intervals.append(self.intervals[i:i + max_intervals])
             temp_bams.append(temp_bam)
-            sys.stderr.write('Finished {} through {}\n'.format(i, i +
-                                                               max_intervals))
         if len(temp_bams) > 1:
             c = 'samtools merge -f {} {}'.format(self.bam,
                                                  ' '.join(temp_bams))
@@ -522,7 +519,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         df = pd.read_html(self.html_status)[0]
         for t in self.tumor_normal_ids.keys():
             n = self.tumor_normal_ids[t]
-            ind = '{}.{}'.format(t, n)
+            ind = '{}_{}'.format(t, n)
             if df.ix[ind, 'tumor reads'] == 'finished':
                 self.reads_started.append(t)
                 self.reads_finished.append(t)
@@ -551,7 +548,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         normals.reverse()
         for i, t in enumerate(tumors):
             n = normals[i]
-            index.append('{}.{}'.format(t, n))
+            index.append('{}_{}'.format(t, n))
         columns = ['tumor reads', 'normal reads', 'variant calling']
         df = pd.DataFrame(index=index, columns=columns)
         df.to_html(self.html_status, na_rep='')
@@ -564,11 +561,11 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         pairs_finished = 0
         for t in self.tumor_normal_ids.keys():
             n = self.tumor_normal_ids[t]
-            ind = '{}.{}'.format(t, n)
+            ind = '{}_{}'.format(t, n)
             if t in self.reads_finished:
-                df.ix[ind, 'tumor_reads'] = 'finished'
+                df.ix[ind, 'tumor reads'] = 'finished'
             if n in self.reads_finished:
-                df.ix[ind, 'normal_reads'] = 'finished'
+                df.ix[ind, 'normal reads'] = 'finished'
             analysis_dir = os.path.join(self.variant_outdir,
                                         '{}_{}'.format(t, n))
             variants = os.path.join(analysis_dir, 
@@ -618,6 +615,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         if (type(self.variant_engine_fnc) == types.FunctionType or
             inspect.ismethod(self.variant_engine_fnc)):
             self.variant_engine_fnc()
+        self._update_html_status()
 
     def _call_variants(self, tumor, normal):
         pbs = self._write_pbs_script(tumor, normal)
