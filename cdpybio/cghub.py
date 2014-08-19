@@ -26,8 +26,8 @@ def bed_to_samtools_intervals(bed):
     return intervals
 
 class GTFuseBam:
-    def __init__(self, analysis_id, mountpoint='/tmp/[username]',
-                 cache='/tmp/[username]/fusecache'):
+    def __init__(self, analysis_id, mountpoint='.',
+                 cache='./fusecache'):
         """
         Parameters
         ----------
@@ -42,11 +42,7 @@ class GTFuseBam:
         import pwd
         username = pwd.getpwuid(os.getuid()).pw_name
         self.analysis_id = analysis_id
-        if mountpoint == '/tmp/[username]':
-            mountpoint = '/tmp/{}'.format(username)
         self.mountpoint = mountpoint
-        if cache == '/tmp/[username]/fusecache':
-            cache = '/tmp/{}/fusecache'.format(username)
         self.cache = cache
         self._make_tempdir()
         self.bam = ''
@@ -92,7 +88,7 @@ class GTFuseBam:
         self.bam = os.path.realpath(bam)
         self.mounted = True
         
-    def unmount(self, tries=10, sleeptime=10):
+    def unmount(self, tries=100, sleeptime=10):
         """
         Unmount bam file mounted with GTFuse
         
@@ -117,6 +113,13 @@ class GTFuseBam:
         for f in files:
             if f != mnt:
                 os.remove(f)
+        # Now clear cache.
+        files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
+        for f in files:
+            if os.path.isfile(f):
+                os.remove(f)
+            elif os.path.isdir(f):
+                shutil.rmtree(f)
         # Now unmount bam.
         t = 0
         while t < tries:
@@ -130,13 +133,6 @@ class GTFuseBam:
     
         os.rmdir(mnt)
         os.rmdir(os.path.split(mnt)[0])
-        # Now clear cache.
-        files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
-        for f in files:
-            if os.path.isfile(f):
-                os.remove(f)
-            elif os.path.isdir(f):
-                shutil.rmtree(f)
         self.mounted = False
 
 class ReadsFromIntervalsBam:
@@ -191,6 +187,8 @@ class ReadsFromIntervalsBam:
         if not self.gtfuse_bam.mounted:
             self.gtfuse_bam.mount()
         temp_bams = []
+        stderr = open(os.path.join(self.tempdir,
+                                   '{}.err'.format(self.analysis_id)), 'w')
         for i in range(0, len(self.intervals), max_intervals):
             ints = ' '.join(self.intervals[i:i + max_intervals])
             temp_bam = os.path.join(self.tempdir, 
@@ -200,7 +198,7 @@ class ReadsFromIntervalsBam:
             t = 0
             while t < tries:
                 try:
-                    subprocess.check_call(c, shell=True)
+                    subprocess.check_call(c, shell=True, stderr=stderr)
                     break
                 except subprocess.CalledProcessError:
                     t += 1
@@ -213,11 +211,14 @@ class ReadsFromIntervalsBam:
         if len(temp_bams) > 1:
             c = 'samtools merge -f {} {}'.format(self.bam,
                                                  ' '.join(temp_bams))
-            subprocess.check_call(c, shell=True)
+            subprocess.check_call(c, shell=True, stderr=stderr)
+            stderr.close()
             for b in temp_bams:
                 os.remove(b)
+            stderr.close()
         else:
             shutil.move(temp_bams[0], self.bam)
+        os.remove(stderr.name)
 
 class ReadsFromIntervalsEngine:
     # This class creates an "engine" that runs in the background and gets reads
@@ -636,6 +637,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def _variant_calling_worker(self):
         import inspect
+        import pandas
         import sys
         import types
         vc_started = set([ x.tumor_id for x in self.variant_calling_started])
