@@ -223,8 +223,8 @@ class ReadsFromIntervalsBam:
                     c = 'samtools merge -f {} {} {}'.format(
                         merged_bam, old_merged_bam, temp_bam)
                     subprocess.check_call(c, shell=True)
-                    os.remove(old_merged_bam)
-                    os.remove(temp_bam)
+                    # os.remove(old_merged_bam)
+                    # os.remove(temp_bam)
         shutil.move(merged_bam, self.bam)
 
 class ReadsFromIntervalsEngine:
