@@ -243,8 +243,7 @@ class ReadsFromIntervalsEngine:
     # executes an arbitrary function every time the engine cycles.
 
     def __init__(self, analysis_ids, bed, bam_outdir='.', bed_name=None,
-                 threads=10, sleeptime=10, reads_started=[], reads_finished=[],
-                 bam_fnc=None, engine_fnc=None):
+                 threads=10, sleeptime=10, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -263,19 +262,6 @@ class ReadsFromIntervalsEngine:
             Number of different processes/threads to use.
         sleeptime : int
             Number of seconds to sleep between engine updates.
-        reads_started : list
-            List of analysis IDs that we have already started getting reads for.
-            This is used when restarting a job that a previous engine was
-            working on.
-        reads_finished : list
-            List of analysis IDs that we have already obtained the reads for.
-            This is used when restarting a job that a previous engine was
-            working on.
-        bam_fnc : function
-            Function to apply to each bam file (path) after the bam file is
-            made. For instance, you could make a function that uses the bam file
-            path as input for variant calling, etc. This function is called as
-            soon as the engine knows that the bam file is created.
         engine_fnc : function
             Function to execute every time the engine cycles (aka every
             sleeptime number of seconds while the engine is running). 
@@ -298,19 +284,17 @@ class ReadsFromIntervalsEngine:
             self.bed_name = os.path.splitext(os.path.split(self.bed)[1])[0]
         else:
             self.bed_name = bed_name
-        # analysis_ids that the engine has started getting reads for.
-        self.reads_started = reads_started
-        # analysis_ids that the engine has not started getting reads for.
-        self.reads_remaining = analysis_ids
         # analysis_ids that have finished.
-        self.reads_finished = reads_finished
-        for a in self.reads_finished:
-            self.reads_remaining.remove(a)
+        self.reads_obtained = []
+        # Processes created using multiprocessing.
         self.processes = []
         # ReadsFromIntervalsBam objects.
         self.reads_from_intervals_bams = []
-        # Queue used when multiprocessing.
-        self.in_queue = None
+        # analysis_ids to be fed to workers.
+        self.in_queue = multiprocessing.JoinableQueue()
+        # Queue to hold ReadsFromIntervalsBam objects that are complete. We will
+        # consume these to put the analysis_ids into self.reads_obtained.
+        self.out_queue = multiprocessing.Queue()
         # We set this event when we want to stop the engine.
         self._stop_event = None
         # Directory to store mounted bam files.
@@ -342,8 +326,6 @@ class ReadsFromIntervalsEngine:
         import time
         import types
 
-        self.in_queue = multiprocessing.JoinableQueue()
-        self.out_queue = multiprocessing.Queue()
         for aid in self.analysis_ids:
             self.in_queue.put(aid)
         for i in xrange(self.threads):
@@ -354,7 +336,7 @@ class ReadsFromIntervalsEngine:
             while True:
                 try:
                     bam = self.out_queue.get(timeout=self.sleeptime)
-                    self.reads_finished.append(bam.analysis_id)
+                    self.reads_obtained.append(bam.analysis_id)
                 except:
                     Queue.Empty:
                         break
@@ -524,7 +506,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
             bed_name=self.name, threads=threads, sleeptime=sleeptime,
             reads_started=self.reads_started,
-            reads_finished=self.reads_finished,
+            reads_obtained=self.reads_obtained,
             engine_fnc=self._variant_calling_worker
         )
 
@@ -547,7 +529,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         this variant calling run and populate it.
         """
         self.reads_started = []
-        self.reads_finished = []
+        self.reads_obtained = []
         if os.path.exists(self.html_status):
             self._exist_setup()
         else:
@@ -566,10 +548,10 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             ind = vc.name
             if df.ix[ind, 'tumor reads'] == 'finished':
                 self.reads_started.append(t)
-                self.reads_finished.append(t)
+                self.reads_obtained.append(t)
             if df.ix[ind, 'normal reads'] == 'finished':
                 self.reads_started.append(n)
-                self.reads_finished.append(n)
+                self.reads_obtained.append(n)
             if df.ix[ind, 'variant calling'] == 'finished':
                 self.variant_calling_started.append(vc)
 
@@ -603,9 +585,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             t = vc.tumor_id
             n = vc.normal_id
             ind = vc.name
-            if t in self.reads_finished:
+            if t in self.reads_obtained:
                 df.ix[ind, 'tumor reads'] = 'finished'
-            if n in self.reads_finished:
+            if n in self.reads_obtained:
                 df.ix[ind, 'normal reads'] = 'finished'
             if os.path.exists(vc.variants):
                 df.ix[ind, 'variant calling'] = 'finished'
@@ -648,7 +630,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
                    set(self.variant_calling_started)):
             t = vc.tumor_id
             n = vc.normal_id
-            if (t in self.reads_finished) and (n in self.reads_finished):
+            if (t in self.reads_obtained) and (n in self.reads_obtained):
                 self._call_variants(vc)
                 self.variant_calling_started.append(vc)
         if (type(self.variant_engine_fnc) == types.FunctionType or
