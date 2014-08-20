@@ -1,4 +1,6 @@
+import logging
 import os
+logging.basicConfig(filename='cghub.log')
 
 def bed_to_samtools_intervals(bed):
     """
@@ -26,8 +28,8 @@ def bed_to_samtools_intervals(bed):
     return intervals
 
 class GTFuseBam:
-    def __init__(self, analysis_id, mountpoint='/tmp/[username]',
-                 cache='/tmp/[username]/fusecache'):
+    def __init__(self, analysis_id, mountpoint='.',
+                 cache='./fusecache'):
         """
         Parameters
         ----------
@@ -42,11 +44,7 @@ class GTFuseBam:
         import pwd
         username = pwd.getpwuid(os.getuid()).pw_name
         self.analysis_id = analysis_id
-        if mountpoint == '/tmp/[username]':
-            mountpoint = '/tmp/{}'.format(username)
         self.mountpoint = mountpoint
-        if cache == '/tmp/[username]/fusecache':
-            cache = '/tmp/{}/fusecache'.format(username)
         self.cache = cache
         self._make_tempdir()
         self.bam = ''
@@ -136,7 +134,6 @@ class GTFuseBam:
             except OSError:
                 time.sleep(sleeptime)
                 t += 1
-    
         self.mounted = False
 
 class ReadsFromIntervalsBam:
@@ -191,6 +188,9 @@ class ReadsFromIntervalsBam:
         import time
         if not self.gtfuse_bam.mounted:
             self.gtfuse_bam.mount()
+        temp_bams = []
+        stderr = open(os.path.join(self.tempdir,
+                                   '{}.err'.format(self.analysis_id)), 'w')
         for i in range(0, len(self.intervals), max_intervals):
             ints = ' '.join(self.intervals[i:i + max_intervals])
             temp_bam = os.path.join(
@@ -200,7 +200,7 @@ class ReadsFromIntervalsBam:
             t = 0
             while t < tries:
                 try:
-                    subprocess.check_call(c, shell=True)
+                    subprocess.check_call(c, shell=True, stderr=stderr)
                     break
                 except subprocess.CalledProcessError:
                     t += 1
@@ -209,23 +209,18 @@ class ReadsFromIntervalsBam:
                     self.gtfuse_bam.mount()
             if t == tries:
                 self.bad_intervals.append(self.intervals[i:i + max_intervals])
-            else:
-                if i == 0:
-                    merged_bam = os.path.join(
-                        self.tempdir, '{}_{}_merged.bam'.format(
-                            self.analysis_id, i))
-                    shutil.move(temp_bam, merged_bam)
-                else:
-                    old_merged_bam = copy.deepcopy(merged_bam)
-                    merged_bam = os.path.join(
-                        self.tempdir, '{}_{}_merged.bam'.format(
-                            self.analysis_id, i))
-                    c = 'samtools merge -f {} {} {}'.format(
-                        merged_bam, old_merged_bam, temp_bam)
-                    subprocess.check_call(c, shell=True)
-                    # os.remove(old_merged_bam)
-                    # os.remove(temp_bam)
-        shutil.move(merged_bam, self.bam)
+            temp_bams.append(temp_bam)
+        if len(temp_bams) > 1:
+            c = 'samtools merge -f {} {}'.format(self.bam,
+                                                 ' '.join(temp_bams))
+            subprocess.check_call(c, shell=True, stderr=stderr)
+            stderr.close()
+            for b in temp_bams:
+                os.remove(b)
+            stderr.close()
+        else:
+            shutil.move(temp_bams[0], self.bam)
+        os.remove(stderr.name)
 
 class ReadsFromIntervalsEngine:
     # This class creates an "engine" that runs in the background and gets reads
@@ -320,6 +315,10 @@ class ReadsFromIntervalsEngine:
         self.queue = None
         # We set this event when we want to stop the engine.
         self.stop_event = threading.Event()
+        # Directory to store mounted bam files.
+        self.mountpoint = os.path.join(self.bam_outdir, 'tmp')
+        # Directory to store GTFuse cache.
+        self.fusecache = os.path.join(self.bam_outdir, 'tmp', 'fusecache')
         self.running = False
         # Process that the engine is running on.
         self.engine_thread = None
@@ -351,6 +350,8 @@ class ReadsFromIntervalsEngine:
                     inspect.ismethod(self.engine_fnc)):
                     self.engine_fnc()
             self.stop_event.wait(self.sleeptime)
+            logging.warning('Worker running at '
+                            '{}'.format(time.strftime("%H:%M:%S")))
         # If we get here, we don't want to run any more. Wait for processes to
         # finish, then exit.
         sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
@@ -387,12 +388,20 @@ class ReadsFromIntervalsEngine:
                     self.bam_fnc(bam)
 
     def get_reads(self, analysis_id):
+        import sys
         bam_path = os.path.join(self.bam_outdir,
                                 '{}_{}.bam'.format(self.bed_name, analysis_id))
-        gtfuse_bam = GTFuseBam(analysis_id)
+        logging.warning('Mounting bam for {}\n'.format(analysis_id))
+        gtfuse_bam = GTFuseBam(analysis_id, mountpoint=self.mountpoint, 
+                               cache=self.fusecache)
+        logging.warning('Getting reads for {}\n'.format(analysis_id))
         bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
+        logging.warning('Unmounting bam for {}\n'.format(analysis_id))
         gtfuse_bam.unmount()
+        logging.warning('Putting results in queue for {}\n'.format(analysis_id))
         self.queue.put(bam)
+        logging.warning('Finished get_reads for {}\n'.format(analysis_id))
+        sys.exit(0)
 
     def new_proc(self):
         import multiprocessing
@@ -400,7 +409,8 @@ class ReadsFromIntervalsEngine:
         if len(self.reads_remaining) > 0:
             analysis_id = self.reads_remaining.pop()
             p = multiprocessing.Process(target=self.get_reads,
-                                        args=[analysis_id])
+                                        args=[analysis_id]) 
+            p.daemon = True
             self.current_procs.append(p)
             p.start()
             self.reads_started.append(analysis_id)
@@ -646,6 +656,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         import inspect
         import pandas as pd
         import sys
+        import time
         import types
         vc_started = set([ x.tumor_id for x in self.variant_calling_started])
         for vc in (set(self.tumor_normal_variant_calls) -
@@ -678,8 +689,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         subprocess.check_call(['ssh', self.external_server, 'qsub', vc.pbs])
 
     def _write_pbs_script(self, vc):
-        # tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
-        # normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
         # Make directory to store results if it doesn't already exist.
         try:
             os.makedirs(vc.variant_dir)
