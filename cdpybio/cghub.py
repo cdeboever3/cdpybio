@@ -237,10 +237,8 @@ class ReadsFromIntervalsEngine:
     # GTFuse is generally the thing that takes a long time, so I'd just have to
     # kill that in some way.  I also wanted to make the class simple so that it
     # could be subclassed for more complex analyses.  Subclassing will mainly be
-    # accomplished using the bam_fnc parameter which allows execution of an
-    # arbitrary function on each bam file that contains the reads from the
-    # intervals as the bam files are created and the engine_fnc parameter which
-    # executes an arbitrary function every time the engine cycles.
+    # accomplished using the engine_fnc parameter which executes an arbitrary
+    # function every time the engine cycles.
 
     def __init__(self, analysis_ids, bed, bam_outdir='.', bed_name=None,
                  threads=10, sleeptime=10, engine_fnc=None):
@@ -250,7 +248,7 @@ class ReadsFromIntervalsEngine:
         Parameters
         ----------
         analysis_ids : list
-            List of TCGA analysis IDs.
+            List of TCGA analysis IDs to get reads for.
         bed : path
             Bed file with intervals.
         bam_outdir : directory
@@ -267,6 +265,7 @@ class ReadsFromIntervalsEngine:
             sleeptime number of seconds while the engine is running). 
 
         """
+        import multiprocessing
         import threading
         assert len(analysis_ids) > 0
         assert os.path.exists(bed)
@@ -275,8 +274,6 @@ class ReadsFromIntervalsEngine:
         self.bam_outdir = bam_outdir
         self.threads = threads
         self.sleeptime = sleeptime
-        self.bam_fnc = bam_fnc
-        assert bam_fnc == None # Currently not implemented, may remove for now.
         self.engine_fnc = engine_fnc
         self.intervals = bed_to_samtools_intervals(bed)
         # Bed file name
@@ -317,6 +314,7 @@ class ReadsFromIntervalsEngine:
 
     def stop(self):
         self._stop_event.set()
+        self.running = False
 
     def _reads_from_intervals_parent(self):
         import inspect
@@ -329,23 +327,24 @@ class ReadsFromIntervalsEngine:
         for aid in self.analysis_ids:
             self.in_queue.put(aid)
         for i in xrange(self.threads):
-            self.add_process()
+            self._add_process()
             self.in_queue.put('STOP')
 
-        while sum([p.is_alive() for p in self.processes]) > 0:
+        while (sum([p.is_alive() for p in self.processes]) > 0 and
+               not self.stop_event.is_set()):
             while True:
                 try:
                     bam = self.out_queue.get(timeout=self.sleeptime)
+                    self.reads_from_intervals_bams.append(bam)
                     self.reads_obtained.append(bam.analysis_id)
-                except:
-                    Queue.Empty:
+                except Queue.Empty:
                         break
 
             if (type(self.engine_fnc) == types.FunctionType or
                 inspect.ismethod(self.engine_fnc)):
                 self.engine_fnc()
-        
-        self.running = False
+
+        self.stop()
 
     def _reads_from_intervals_worker(self, in_queue, out_queue):
         import sys
@@ -364,22 +363,7 @@ class ReadsFromIntervalsEngine:
 
         in_queue.task_done()
 
-    def get_reads(self, analysis_id):
-        import sys
-        bam_path = os.path.join(self.bam_outdir,
-                                '{}_{}.bam'.format(self.bed_name, analysis_id))
-        logging.warning('Mounting bam for {}\n'.format(analysis_id))
-        gtfuse_bam = GTFuseBam(analysis_id, mountpoint=self.mountpoint, 
-                               cache=self.fusecache)
-        logging.warning('Getting reads for {}\n'.format(analysis_id))
-        bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
-        logging.warning('Unmounting bam for {}\n'.format(analysis_id))
-        gtfuse_bam.unmount()
-        logging.warning('Putting results in queue for {}\n'.format(analysis_id))
-        self.queue.put(bam)
-        logging.warning('Finished get_reads for {}\n'.format(analysis_id))
-
-    def add_process(self):
+    def _add_process(self):
         import multiprocessing
         p = multiprocessing.Process(target=self._reads_from_intervals_worker,
                                     args=[self.in_queue, self.out_queue]) 
@@ -421,7 +405,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
                  cosmic, name=None, external_server='flc.ucsd.edu',
                  variant_outdir='.', bam_outdir='.', threads=10, sleeptime=10,
-                 bam_fnc=None, variant_engine_fnc=None):
+                 variant_engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -457,11 +441,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             Number of different processes/threads to use.
         sleeptime : int
             Number of seconds to sleep between engine updates.
-        bam_fnc : function
-            Function to apply to each bam file (path) after the bam file is
-            made. For instance, you could make a function that uses the bam file
-            path as input for variant calling, etc. This function is called as
-            soon as the engine knows that the bam file is created.
         variant_engine_fnc : function
             Function to execute every time the engine cycles (aka every
             sleeptime number of seconds while the engine is running). 
@@ -489,6 +468,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         self.external_server = external_server
         # Directory to store variant calling results.
         self.variant_outdir = variant_outdir
+        # Directory to store bam files temporarily. They are deleted once
+        # variant calling is done.
         self.bam_outdir = bam_outdir
         # TumorNormalVariantCall objects that we need to call variants for.
         self._init_vcs()
@@ -496,7 +477,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         self.variant_calling_started = []
         # Directory that holds information about this variant calling run.
         self.infodir = os.path.join(bam_outdir,
-                                    '{}_variant_calling'.format(self.name))
+                                    '{}_variant_calling_info'.format(self.name))
+        # HTML file that provides the status of the variant calling run in
+        # realtime.
         self.html_status = os.path.join(
             self.infodir, '{}_status.html'.format(self.name)
         )
@@ -505,8 +488,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         ReadsFromIntervalsEngine.__init__(
             self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
             bed_name=self.name, threads=threads, sleeptime=sleeptime,
-            reads_started=self.reads_started,
-            reads_obtained=self.reads_obtained,
             engine_fnc=self._variant_calling_worker
         )
 
@@ -528,9 +509,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         for these intervals, make a directory to hold some information about
         this variant calling run and populate it.
         """
-        self.reads_started = []
-        self.reads_obtained = []
         if os.path.exists(self.html_status):
+            sys.exit(1) # Not tested or fully implemented yet
             self._exist_setup()
         else:
             self._not_exist_setup()
@@ -547,11 +527,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             n = vc.normal_id
             ind = vc.name
             if df.ix[ind, 'tumor reads'] == 'finished':
-                self.reads_started.append(t)
-                self.reads_obtained.append(t)
+                self.analysis_ids.remove(t)
             if df.ix[ind, 'normal reads'] == 'finished':
-                self.reads_started.append(n)
-                self.reads_obtained.append(n)
+                self.analysis_ids.remove(n)
             if df.ix[ind, 'variant calling'] == 'finished':
                 self.variant_calling_started.append(vc)
 
