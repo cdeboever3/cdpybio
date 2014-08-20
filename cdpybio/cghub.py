@@ -1,6 +1,5 @@
 import logging
 import os
-logging.basicConfig(filename='cghub.log')
 
 def bed_to_samtools_intervals(bed):
     """
@@ -291,8 +290,8 @@ class ReadsFromIntervalsEngine:
         self.threads = threads
         self.sleeptime = sleeptime
         self.bam_fnc = bam_fnc
+        assert bam_fnc == None # Currently not implemented, may remove for now.
         self.engine_fnc = engine_fnc
-        # Intervals in the format 1:20-200 etc. as a list.
         self.intervals = bed_to_samtools_intervals(bed)
         # Bed file name
         if not bed_name:
@@ -307,14 +306,13 @@ class ReadsFromIntervalsEngine:
         self.reads_finished = reads_finished
         for a in self.reads_finished:
             self.reads_remaining.remove(a)
-        self.current_procs = []
-        self.old_procs = []
+        self.processes = []
         # ReadsFromIntervalsBam objects.
         self.reads_from_intervals_bams = []
         # Queue used when multiprocessing.
-        self.queue = None
+        self.in_queue = None
         # We set this event when we want to stop the engine.
-        self.stop_event = threading.Event()
+        self._stop_event = None
         # Directory to store mounted bam files.
         self.mountpoint = os.path.join(self.bam_outdir, 'tmp')
         # Directory to store GTFuse cache.
@@ -322,70 +320,67 @@ class ReadsFromIntervalsEngine:
         self.running = False
         # Process that the engine is running on.
         self.engine_thread = None
-        self.start_engine()
+        self.start()
 
-    def start_engine(self):
+    def start(self):
         import threading
-        t = threading.Thread(target=self.read_interval_worker)
+        # We set this event when we want to stop the engine.
+        self._stop_event = threading.Event()
+        t = threading.Thread(target=self._reads_from_intervals_parent)
         self.engine_thread = t
         t.start()
         self.running = True
 
-    def read_interval_worker(self):
+    def stop(self):
+        self._stop_event.set()
+
+    def _reads_from_intervals_parent(self):
         import inspect
         import multiprocessing
+        import Queue
         import sys
         import time
         import types
 
-        # ReadsFromIntervalsBam objects will go in the queue.
-        self.queue = multiprocessing.Queue()
-        while not self.stop_event.is_set():
-            if len(self.reads_remaining) == 0:
-                self.stop_engine()
-            else:
-                self.remove_finished_procs()
-                self.add_procs()
-                if (type(self.engine_fnc) == types.FunctionType or
-                    inspect.ismethod(self.engine_fnc)):
-                    self.engine_fnc()
-            self.stop_event.wait(self.sleeptime)
-            logging.warning('Worker running at '
-                            '{}'.format(time.strftime("%H:%M:%S")))
-        # If we get here, we don't want to run any more. Wait for processes to
-        # finish, then exit.
-        sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
-        while len(self.current_procs) > 0:
-            self.remove_finished_procs()
+        self.in_queue = multiprocessing.JoinableQueue()
+        self.out_queue = multiprocessing.Queue()
+        for aid in self.analysis_ids:
+            self.in_queue.put(aid)
+        for i in xrange(self.threads):
+            self.add_process()
+            self.in_queue.put('STOP')
+
+        while sum([p.is_alive() for p in self.processes]) > 0:
+            while True:
+                try:
+                    bam = self.out_queue.get(timeout=self.sleeptime)
+                    self.reads_finished.append(bam.analysis_id)
+                except:
+                    Queue.Empty:
+                        break
+
             if (type(self.engine_fnc) == types.FunctionType or
                 inspect.ismethod(self.engine_fnc)):
                 self.engine_fnc()
-            time.sleep(self.sleeptime)
-        if (type(self.engine_fnc) == types.FunctionType or
-            inspect.ismethod(self.engine_fnc)):
-            self.engine_fnc()
-        sys.stderr.write('Jobs concluded, engine stopped.\n')
+        
         self.running = False
 
-    def stop_engine(self):
-        self.stop_event.set()
+    def _reads_from_intervals_worker(self, in_queue, out_queue):
+        import sys
+        analysis_id = in_queue.get()
+        while analysis_id != 'STOP':
+            bam_path = os.path.join(self.bam_outdir,
+                                    '{}_{}.bam'.format(self.bed_name, 
+                                                       analysis_id))
+            gtfuse_bam = GTFuseBam(analysis_id, mountpoint=self.mountpoint, 
+                                   cache=self.fusecache)
+            bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
+            gtfuse_bam.unmount()
+            self.out_queue.put(bam)
+            in_queue.task_done()
+            analysis_id = in_queue.get()
 
-    def remove_finished_procs(self):
-        import inspect
-        import types
-        for p in self.current_procs:
-            # If we find a dead process, there should be a result in the queue.
-            # The result will not necessarily be from that dead process though.
-            if not p.is_alive():
-                # This will be a ReadsFromIntervalsBam object.
-                bam = self.queue.get()
-                self.reads_from_intervals_bams.append(bam)
-                self.reads_finished.append(bam.analysis_id)
-                self.current_procs.remove(p)
-                self.old_procs.append(p)
-                if (type(self.bam_fnc) == types.FunctionType or
-                    inspect.ismethod(self.bam_fnc)):
-                    self.bam_fnc(bam)
+        in_queue.task_done()
 
     def get_reads(self, analysis_id):
         import sys
@@ -401,24 +396,14 @@ class ReadsFromIntervalsEngine:
         logging.warning('Putting results in queue for {}\n'.format(analysis_id))
         self.queue.put(bam)
         logging.warning('Finished get_reads for {}\n'.format(analysis_id))
-        sys.exit(0)
 
-    def new_proc(self):
+    def add_process(self):
         import multiprocessing
-        import time
-        if len(self.reads_remaining) > 0:
-            analysis_id = self.reads_remaining.pop()
-            p = multiprocessing.Process(target=self.get_reads,
-                                        args=[analysis_id]) 
-            p.daemon = True
-            self.current_procs.append(p)
-            p.start()
-            self.reads_started.append(analysis_id)
-
-    def add_procs(self):
-        while (len(self.current_procs) < self.threads and 
-               len(self.reads_remaining) > 0):
-            self.new_proc()
+        p = multiprocessing.Process(target=self._reads_from_intervals_worker,
+                                    args=[self.in_queue, self.out_queue]) 
+        p.daemon = True
+        self.processes.append(p)
+        p.start()
 
 class TumorNormalVariantCall:
     def __init__(self, tumor_id, normal_id, intervals_name, bam_outdir=',',
@@ -671,7 +656,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             self.variant_engine_fnc()
         self._update_html_status()
         # If the engine is done, wait until all variant calls are done.
-        if len(self.current_procs) == 0 and self.stop_event.is_set():
+        if len(self.processes) == 0 and self._stop_event.is_set():
             df = pd.read_html(self.html_status,
                               index_col=0, header=0)[0]
             while set(df['variant calling']) != set(['finished']):
