@@ -313,6 +313,10 @@ class ReadsFromIntervalsEngine:
         self.queue = None
         # We set this event when we want to stop the engine.
         self.stop_event = threading.Event()
+        # Directory to store mounted bam files.
+        self.mountpoint = os.path.join(self.bam_outdir, 'tmp')
+        # Directory to store GTFuse cache.
+        self.fusecache = os.path.join(self.bam_outdir, 'tmp', 'fusecache')
         self.running = False
         # Process that the engine is running on.
         self.engine_thread = None
@@ -384,7 +388,7 @@ class ReadsFromIntervalsEngine:
                                 '{}_{}.bam'.format(self.bed_name, analysis_id))
         gtfuse_bam = GTFuseBam(analysis_id)
         bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
-        gtfuse_bam.unmount()
+        gtfuse_bam.unmount(mountpoint=self.mountpoint, cache=self.fusecache)
         self.queue.put(bam)
 
     def new_proc(self):
