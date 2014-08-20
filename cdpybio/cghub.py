@@ -642,8 +642,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def _variant_calling_worker(self):
         import inspect
-        import pandas
+        import pandas as pd
         import sys
+        import time
         import types
         vc_started = set([ x.tumor_id for x in self.variant_calling_started])
         for vc in (set(self.tumor_normal_variant_calls) -
@@ -676,8 +677,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         subprocess.check_call(['ssh', self.external_server, 'qsub', vc.pbs])
 
     def _write_pbs_script(self, vc):
-        # tumor_bam = '{}.bam'.format(os.path.join(self.bam_outdir, tumor))
-        # normal_bam = '{}.bam'.format(os.path.join(self.bam_outdir, normal))
         # Make directory to store results if it doesn't already exist.
         try:
             os.makedirs(vc.variant_dir)
