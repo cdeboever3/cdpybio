@@ -1,4 +1,6 @@
+import logging
 import os
+logging.basicConfig(filename='cghub.log')
 
 def bed_to_samtools_intervals(bed):
     """
@@ -348,6 +350,8 @@ class ReadsFromIntervalsEngine:
                     inspect.ismethod(self.engine_fnc)):
                     self.engine_fnc()
             self.stop_event.wait(self.sleeptime)
+            logging.warning('Worker running at '
+                            '{}'.format(time.strftime("%H:%M:%S")))
         # If we get here, we don't want to run any more. Wait for processes to
         # finish, then exit.
         sys.stderr.write('Engine stopping, waiting for jobs to conclude.\n')
@@ -384,13 +388,20 @@ class ReadsFromIntervalsEngine:
                     self.bam_fnc(bam)
 
     def get_reads(self, analysis_id):
+        import sys
         bam_path = os.path.join(self.bam_outdir,
                                 '{}_{}.bam'.format(self.bed_name, analysis_id))
+        logging.warning('Mounting bam for {}\n'.format(analysis_id))
         gtfuse_bam = GTFuseBam(analysis_id, mountpoint=self.mountpoint, 
                                cache=self.fusecache)
+        logging.warning('Getting reads for {}\n'.format(analysis_id))
         bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
+        logging.warning('Unmounting bam for {}\n'.format(analysis_id))
         gtfuse_bam.unmount()
+        logging.warning('Putting results in queue for {}\n'.format(analysis_id))
         self.queue.put(bam)
+        logging.warning('Finished get_reads for {}\n'.format(analysis_id))
+        sys.exit(0)
 
     def new_proc(self):
         import multiprocessing
@@ -398,7 +409,8 @@ class ReadsFromIntervalsEngine:
         if len(self.reads_remaining) > 0:
             analysis_id = self.reads_remaining.pop()
             p = multiprocessing.Process(target=self.get_reads,
-                                        args=[analysis_id])
+                                        args=[analysis_id]) 
+            p.daemon = True
             self.current_procs.append(p)
             p.start()
             self.reads_started.append(analysis_id)
