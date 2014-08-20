@@ -386,9 +386,10 @@ class ReadsFromIntervalsEngine:
     def get_reads(self, analysis_id):
         bam_path = os.path.join(self.bam_outdir,
                                 '{}_{}.bam'.format(self.bed_name, analysis_id))
-        gtfuse_bam = GTFuseBam(analysis_id)
+        gtfuse_bam = GTFuseBam(analysis_id, mountpoint=self.mountpoint, 
+                               cache=self.fusecache)
         bam = ReadsFromIntervalsBam(gtfuse_bam, self.intervals, bam_path)
-        gtfuse_bam.unmount(mountpoint=self.mountpoint, cache=self.fusecache)
+        gtfuse_bam.unmount()
         self.queue.put(bam)
 
     def new_proc(self):
