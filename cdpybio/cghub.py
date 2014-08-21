@@ -331,7 +331,7 @@ class ReadsFromIntervalsEngine:
             self.in_queue.put('STOP')
 
         while (sum([p.is_alive() for p in self.processes]) > 0 and
-               not self.stop_event.is_set()):
+               not self._stop_event.is_set()):
             while True:
                 try:
                     bam = self.out_queue.get(timeout=self.sleeptime)
@@ -344,6 +344,9 @@ class ReadsFromIntervalsEngine:
                 inspect.ismethod(self.engine_fnc)):
                 self.engine_fnc()
 
+        if (type(self.engine_fnc) == types.FunctionType or
+            inspect.ismethod(self.engine_fnc)):
+            self.engine_fnc()
         self.stop()
 
     def _reads_from_intervals_worker(self, in_queue, out_queue):
@@ -476,7 +479,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         # TumorNormalVariantCalls that we have begun calling variants for.
         self.variant_calling_started = []
         # Directory that holds information about this variant calling run.
-        self.infodir = os.path.join(bam_outdir,
+        self.infodir = os.path.join(variant_outdir,
                                     '{}_variant_calling_info'.format(self.name))
         # HTML file that provides the status of the variant calling run in
         # realtime.
@@ -509,29 +512,30 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         for these intervals, make a directory to hold some information about
         this variant calling run and populate it.
         """
-        if os.path.exists(self.html_status):
-            sys.exit(1) # Not tested or fully implemented yet
-            self._exist_setup()
-        else:
-            self._not_exist_setup()
+        # TODO: update ability to restart engine.
+        # if os.path.exists(self.html_status):
+        #     self._exist_setup()
+        # else:
+        #     self._not_exist_setup()
+        self._not_exist_setup()
 
-    def _exist_setup(self):
-        """Set up the engine given that an engine has already worked on these
-        samples and intervals in the past"""
-        # Update analysis ids based on which samples have already been
-        # completed.
-        import pandas as pd
-        df = pd.read_html(self.html_status)[0]
-        for vc in self.tumor_normal_variant_calls:
-            t = vc.tumor_id
-            n = vc.normal_id
-            ind = vc.name
-            if df.ix[ind, 'tumor reads'] == 'finished':
-                self.analysis_ids.remove(t)
-            if df.ix[ind, 'normal reads'] == 'finished':
-                self.analysis_ids.remove(n)
-            if df.ix[ind, 'variant calling'] == 'finished':
-                self.variant_calling_started.append(vc)
+    # def _exist_setup(self):
+    #     """Set up the engine given that an engine has already worked on these
+    #     samples and intervals in the past"""
+    #     # Update analysis ids based on which samples have already been
+    #     # completed.
+    #     import pandas as pd
+    #     df = pd.read_html(self.html_status)[0]
+    #     for vc in self.tumor_normal_variant_calls:
+    #         t = vc.tumor_id
+    #         n = vc.normal_id
+    #         ind = vc.name
+    #         if df.ix[ind, 'tumor reads'] == 'finished':
+    #             self.analysis_ids.remove(t)
+    #         if df.ix[ind, 'normal reads'] == 'finished':
+    #             self.analysis_ids.remove(n)
+    #         if df.ix[ind, 'variant calling'] == 'finished':
+    #             self.variant_calling_started.append(vc)
 
     def _not_exist_setup(self):
         import pandas as pd
@@ -552,9 +556,11 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         columns = ['tumor reads', 'normal reads', 'variant calling']
         df = pd.DataFrame(index=index, columns=columns)
         df.to_html(self.html_status, na_rep='')
-        self._update_html_status()
+        # self.update_html_status()
 
-    def _update_html_status(self):
+    def update_html_status(self):
+        # TODO: I'll likely need updates here for restarting a job later and
+        # picking up where the last engine left off.
         import pandas as pd
         df = pd.read_html(self.html_status,
                           index_col=0, header=0)[0]
@@ -614,14 +620,15 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         if (type(self.variant_engine_fnc) == types.FunctionType or
             inspect.ismethod(self.variant_engine_fnc)):
             self.variant_engine_fnc()
-        self._update_html_status()
+        self.update_html_status()
         # If the engine is done, wait until all variant calls are done.
-        if len(self.processes) == 0 and self._stop_event.is_set():
+        if (self._stop_event.is_set() or 
+            sum([p.is_alive() for p in self.processes]) == 0):
             df = pd.read_html(self.html_status,
                               index_col=0, header=0)[0]
             while set(df['variant calling']) != set(['finished']):
-                time.sleep(self.sleeptime)    
-                self._update_html_status()
+                time.sleep(self.sleeptime)
+                self.update_html_status()
                 df = pd.read_html(self.html_status,
                                   index_col=0, header=0)[0]
 
