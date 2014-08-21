@@ -1,4 +1,3 @@
-import logging
 import os
 
 def bed_to_samtools_intervals(bed):
@@ -273,6 +272,7 @@ class ReadsFromIntervalsEngine:
         self.bed = bed
         self.bam_outdir = bam_outdir
         self.threads = threads
+        assert threads <= 10
         self.sleeptime = sleeptime
         self.engine_fnc = engine_fnc
         self.intervals = bed_to_samtools_intervals(bed)
@@ -320,7 +320,6 @@ class ReadsFromIntervalsEngine:
         import inspect
         import multiprocessing
         import Queue
-        import sys
         import time
         import types
 
@@ -350,7 +349,6 @@ class ReadsFromIntervalsEngine:
         self.stop()
 
     def _reads_from_intervals_worker(self, in_queue, out_queue):
-        import sys
         analysis_id = in_queue.get()
         while analysis_id != 'STOP':
             bam_path = os.path.join(self.bam_outdir,
@@ -606,7 +604,6 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def _variant_calling_worker(self):
         import inspect
         import pandas as pd
-        import sys
         import time
         import types
         vc_started = set([ x.tumor_id for x in self.variant_calling_started])
