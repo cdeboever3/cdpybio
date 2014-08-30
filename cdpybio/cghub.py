@@ -510,30 +510,31 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         for these intervals, make a directory to hold some information about
         this variant calling run and populate it.
         """
-        # TODO: update ability to restart engine.
-        # if os.path.exists(self.html_status):
-        #     self._exist_setup()
-        # else:
-        #     self._not_exist_setup()
-        self._not_exist_setup()
+        if os.path.exists(self.html_status):
+            self._exist_setup()
+        else:
+            self._not_exist_setup()
 
-    # def _exist_setup(self):
-    #     """Set up the engine given that an engine has already worked on these
-    #     samples and intervals in the past"""
-    #     # Update analysis ids based on which samples have already been
-    #     # completed.
-    #     import pandas as pd
-    #     df = pd.read_html(self.html_status)[0]
-    #     for vc in self.tumor_normal_variant_calls:
-    #         t = vc.tumor_id
-    #         n = vc.normal_id
-    #         ind = vc.name
-    #         if df.ix[ind, 'tumor reads'] == 'finished':
-    #             self.analysis_ids.remove(t)
-    #         if df.ix[ind, 'normal reads'] == 'finished':
-    #             self.analysis_ids.remove(n)
-    #         if df.ix[ind, 'variant calling'] == 'finished':
-    #             self.variant_calling_started.append(vc)
+    def _exist_setup(self):
+        """Set up the engine given that an engine has already worked on these
+        samples and intervals in the past"""
+        # TODO: Check to make sure we have the same bam file as before.
+        # Update analysis ids based on which samples have already been
+        # completed.
+        import pandas as pd
+        df = pd.read_html(self.html_status)[0]
+        for vc in self.tumor_normal_variant_calls:
+            t = vc.tumor_id
+            n = vc.normal_id
+            ind = vc.name
+            if df.ix[ind, 'tumor reads'] == 'finished':
+                self.analysis_ids.remove(t)
+                self.reads_obtained.append(t)
+            if df.ix[ind, 'normal reads'] == 'finished':
+                self.analysis_ids.remove(n)
+                self.reads_obtained.append(n)
+            if df.ix[ind, 'variant calling'] == 'finished':
+                self.variant_calling_started.append(vc)
 
     def _not_exist_setup(self):
         import pandas as pd
