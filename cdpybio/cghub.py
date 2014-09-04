@@ -327,7 +327,7 @@ class ReadsFromIntervalsEngine:
         try:
             os.rmdir(self.tempdir)
         except OSError:
-            continue
+            pass
 
     def _reads_from_intervals_parent(self):
         import inspect
