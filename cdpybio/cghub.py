@@ -239,8 +239,8 @@ class ReadsFromIntervalsEngine:
     # accomplished using the engine_fnc parameter which executes an arbitrary
     # function every time the engine cycles.
 
-    def __init__(self, analysis_ids, bed, bam_outdir='.', bed_name=None,
-                 threads=10, sleeptime=10, engine_fnc=None):
+    def __init__(self, analysis_ids, bed, bam_outdir='.', tempdir='.',
+                 bed_name=None, threads=10, sleeptime=10, engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -251,7 +251,10 @@ class ReadsFromIntervalsEngine:
         bed : path
             Bed file with intervals.
         bam_outdir : directory
-            Directory to write bam files to.
+            Directory to write final bam files to.
+        tempdir : directory
+            Directory to mount bam files with GTFuse and store temporary bam
+            files.
         bed_name : str
             Name of the bed file containing the intervals. Used to name output
             files. If not provided, defaults to the file name of the bed file.
@@ -271,6 +274,7 @@ class ReadsFromIntervalsEngine:
         self.analysis_ids = analysis_ids
         self.bed = bed
         self.bam_outdir = bam_outdir
+        self.tempdir = tempdir
         self.threads = threads
         assert threads <= 10
         self.sleeptime = sleeptime
@@ -295,9 +299,9 @@ class ReadsFromIntervalsEngine:
         # We set this event when we want to stop the engine.
         self._stop_event = None
         # Directory to store mounted bam files.
-        self.mountpoint = os.path.join(self.bam_outdir, 'tmp')
+        self.mountpoint = os.path.join(self.tempdir, 'tmp')
         # Directory to store GTFuse cache.
-        self.fusecache = os.path.join(self.bam_outdir, 'tmp', 'fusecache')
+        self.fusecache = os.path.join(self.tempdir, 'tmp', 'fusecache')
         self.running = False
         # Process that the engine is running on.
         self.engine_thread = None
@@ -315,6 +319,15 @@ class ReadsFromIntervalsEngine:
     def stop(self):
         self._stop_event.set()
         self.running = False
+
+    def cleanup(self):
+        """Remove temp directories"""
+        os.rmdir(self.fusecache)
+        os.rmdir(self.mountpoint)
+        try:
+            os.rmdir(self.tempdir)
+        except OSError:
+            continue
 
     def _reads_from_intervals_parent(self):
         import inspect
@@ -347,6 +360,7 @@ class ReadsFromIntervalsEngine:
             inspect.ismethod(self.engine_fnc)):
             self.engine_fnc()
         self.stop()
+        self.cleanup()
 
     def _reads_from_intervals_worker(self, in_queue, out_queue):
         analysis_id = in_queue.get()
@@ -405,8 +419,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
                  cosmic, name=None, external_server='flc.ucsd.edu',
-                 variant_outdir='.', bam_outdir='.', threads=10, sleeptime=10,
-                 variant_engine_fnc=None):
+                 variant_outdir='.', bam_outdir='.', tempdir=',', threads=10,
+                 sleeptime=10, variant_engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
         
@@ -438,6 +452,9 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             Directory to write variant calling results to.
         bam_outdir : directory
             Directory to write bam files to.
+        tempdir : directory
+            Directory to mount bam files with GTFuse and store temporary bam
+            files.
         threads : int
             Number of different processes/threads to use.
         sleeptime : int
@@ -472,6 +489,11 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         # Directory to store bam files temporarily. They are deleted once
         # variant calling is done.
         self.bam_outdir = bam_outdir
+        # Directory to store temporary bam files from GTFuse. After all of the
+        # temporary bam files are downloaded, they are combined into one bam
+        # that is saved in bam_outdir. This allows the bam downloading to happen
+        # on one disk but the final bam files to be saved somewhere else.
+        self.tempdir = tempdir
         # TumorNormalVariantCall objects that we need to call variants for.
         self._init_vcs()
         # TumorNormalVariantCalls that we have begun calling variants for.
@@ -488,8 +510,8 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         self._setup()
         ReadsFromIntervalsEngine.__init__(
             self, self.analysis_ids, self.bed, bam_outdir=bam_outdir,
-            bed_name=self.name, threads=threads, sleeptime=sleeptime,
-            engine_fnc=self._variant_calling_worker
+            tempdir=self.tempdir, bed_name=self.name, threads=threads,
+            sleeptime=sleeptime, engine_fnc=self._variant_calling_worker
         )
 
     def _init_vcs(self):
@@ -518,7 +540,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
     def _exist_setup(self):
         """Set up the engine given that an engine has already worked on these
         samples and intervals in the past"""
-        # TODO: Check to make sure we have the same bam file as before.
+        # TODO: Check to make sure we have the same bed file as before.
         # Update analysis ids based on which samples have already been
         # completed.
         import pandas as pd
