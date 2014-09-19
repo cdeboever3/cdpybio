@@ -5,8 +5,8 @@ Created on Jul 2, 2013
 '''
 
 import pickle as pickle
-from Data.Containers import Dataset
-import Data.Firehose as FH
+from cdpybio.tcga.Data.Containers import Dataset
+import cdpybio.tcga.Data.Firehose as FH
 
 
 

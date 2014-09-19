@@ -3,8 +3,8 @@ Created on Aug 14, 2013
 
 @author: agross
 '''
-from Processing.Helpers import to_quants, screen_feature
-from Stats.Scipy import chi2_cont_test
+from cdpybio.tcga.Processing.Helpers import to_quants, screen_feature
+from cdpybio.tcga.Stats.Scipy import chi2_cont_test
 
 import numpy as np
 import pandas as pd

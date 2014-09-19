@@ -8,17 +8,18 @@ import pickle as pickle
 import pandas as pd
 
 # from Reports.NotebookTools import *
-from Stats.Scipy import *
-from Stats.Survival import *
+from cdpybio.tcga.Stats.Scipy import *
+from cdpybio.tcga.Stats.Survival import *
 
 # from Reports.Figures import *
-from Processing.Helpers import *
-from Figures.Helpers import *
-from Figures.Pandas import *
-from Figures.Boxplots import *
+from cdpybio.tcga.Processing.Helpers import *
+from cdpybio.tcga.Figures.Helpers import *
+from cdpybio.tcga.Figures.Pandas import *
+from cdpybio.tcga.Figures.Boxplots import *
 # from Figures.R_Wrappers import *
-from Figures.Survival import draw_survival_curve, survival_and_stats
-from Figures.Survival import draw_survival_curves
+from cdpybio.tcga.Figures.Survival import draw_survival_curve
+from cdpybio.tcga.Figures.Survival import survival_and_stats
+from cdpybio.tcga.Figures.Survival import draw_survival_curves
 
 pd.set_option('precision', 3)
 pd.set_option('display.line_width', 100)

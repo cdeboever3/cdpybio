@@ -13,9 +13,9 @@ import pandas as pd
 
 import Data.Firehose as FH
 
-from Stats.Scipy import kruskal_pandas
-from Processing.Helpers import true_index, bhCorrection
-from Processing.Helpers import frame_svd
+from cdpybio.tcga.Stats.Scipy import kruskal_pandas
+from cdpybio.tcga.Processing.Helpers import true_index, bhCorrection
+from cdpybio.tcga.Processing.Helpers import frame_svd
 
 def get_beta_values(data_path, cancer, patients=None, tissue_code='All'):
     '''

@@ -9,9 +9,9 @@ import scipy.stats as stats
 
 import rpy2.robjects as robjects
 from pandas.rpy.common import convert_to_r_dataframe, convert_robj
-from Processing.Helpers import get_vec_type, bhCorrection, powerset
-from Processing.Helpers import match_series, combine
-from Stats.Scipy import fisher_exact_test
+from cdpybio.tcga.Processing.Helpers import get_vec_type, bhCorrection, powerset
+from cdpybio.tcga.Processing.Helpers import match_series, combine
+from cdpybio.tcga.Stats.Scipy import fisher_exact_test
 
 survival = robjects.packages.importr('survival')
 base = robjects.packages.importr('base')

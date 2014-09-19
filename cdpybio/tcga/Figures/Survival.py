@@ -3,14 +3,14 @@ Created on Apr 7, 2013
 
 @author: agross
 """
-from Processing.Helpers import get_vec_type, to_quants
-from Stats.Survival import get_cox_ph
+from cdpybio.tcga.Processing.Helpers import get_vec_type, to_quants
+from cdpybio.tcga.Stats.Survival import get_cox_ph
 
 import pandas as pd
 import matplotlib.pylab as plt
 import pandas.rpy.common as com
 import rpy2.robjects as robjects 
-from Stats.Survival import get_surv_fit
+from cdpybio.tcga.Stats.Survival import get_surv_fit
 
 import numpy as np
 

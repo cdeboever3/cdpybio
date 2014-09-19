@@ -6,10 +6,10 @@ Created on Aug 27, 2013
 import pandas as pd
 import numpy as np
 
-import Processing.Helpers as H
-from Stats.Scipy import rev_kruskal
-from Stats.Scipy import ttest_rel
-from Initialization.InitializeReal import exp_change
+import cdpybio.tcga.Processing.Helpers as H
+from cdpybio.tcga.Stats.Scipy import rev_kruskal
+from cdpybio.tcga.Stats.Scipy import ttest_rel
+from cdpybio.tcga.Initialization.InitializeReal import exp_change
 
 
 def fc(hit_vec, response_vec):

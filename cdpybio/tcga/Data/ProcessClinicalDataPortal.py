@@ -7,7 +7,7 @@ import os as os
 import pandas as pd
 import numpy as np
 
-from Data.ProcessClinical import try_float
+from cdpybio.tcga.Data.ProcessClinical import try_float
 
 
 def read_clinical_data(path, cancer):

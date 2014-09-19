@@ -6,14 +6,14 @@ import pickle as pickle
 import pandas as pd
 from matplotlib.pylab import subplots
 from numpy import diag
-import Stats.Scipy as Tests
+import cdpybio.tcga.Stats.Scipy as Tests
 
-from Data.Containers import Dataset
-from Processing.Helpers import frame_svd, extract_pc
-from Processing.Helpers import true_index, screen_feature
-from Stats.Scipy import pearson_pandas
+from cdpybio.tcga.Data.Containers import Dataset
+from cdpybio.tcga.Processing.Helpers import frame_svd, extract_pc
+from cdpybio.tcga.Processing.Helpers import true_index, screen_feature
+from cdpybio.tcga.Stats.Scipy import pearson_pandas
 
-import Data.Intermediate as IM
+import cdpybio.tcga.Data.Intermediate as IM
 
 def exp_change(s):
     '''

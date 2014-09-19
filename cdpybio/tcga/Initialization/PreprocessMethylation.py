@@ -8,9 +8,9 @@ import pandas as pd
 import numpy as np
 
 from subprocess import call, check_output
-from Processing.Helpers import extract_pc, true_index
-from Data.Firehose import fix_barcode_columns
-from Data.Intermediate import get_beta_values
+from cdpybio.tcga.Processing.Helpers import extract_pc, true_index
+from cdpybio.tcga.Data.Firehose import fix_barcode_columns
+from cdpybio.tcga.Data.Intermediate import get_beta_values
 
 def extract_betas(folder, meth_file, probes='All', outfile='beta_values.txt'):
     '''

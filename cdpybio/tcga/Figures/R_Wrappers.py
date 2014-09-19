@@ -6,9 +6,9 @@ Created on Jun 30, 2013
 import numpy as np
 import rpy2.robjects as robjects
 from rpy2.robjects import r
-from Processing.Helpers import get_vec_type , to_quants
-from Stats.Survival import get_cox_ph, log_rank, survival
-from Reports.NotebookTools import Show
+from cdpybio.tcga.Processing.Helpers import get_vec_type , to_quants
+from cdpybio.tcga.Stats.Survival import get_cox_ph, log_rank, survival
+from cdpybio.tcga.Reports.NotebookTools import Show
     
 def draw_survival_curves(feature, surv, assignment=None, filename='tmp.png', show=False,
                         title=True, labels=None, colors=['blue', 'red'], ann=None,

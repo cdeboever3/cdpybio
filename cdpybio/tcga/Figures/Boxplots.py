@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
 
-import Stats.Scipy as Stats
-from Figures.Helpers import latex_float, init_ax
-from Processing.Helpers import match_series
+import cdpybio.tcga.Stats.Scipy as Stats
+from cdpybio.tcga.Figures.Helpers import latex_float, init_ax
+from cdpybio.tcga.Processing.Helpers import match_series
 colors = plt.rcParams['axes.color_cycle'] * 10
 
 

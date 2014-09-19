@@ -3,9 +3,9 @@ Created on Jun 12, 2013
 
 @author: agross
 '''
-import Stats.Scipy as Tests
-from Processing.Helpers import match_series, split_a_by_b
-from Figures.Helpers import init_ax, latex_float
+import cdpybio.tcga.Stats.Scipy as Tests
+from cdpybio.tcga.Processing.Helpers import match_series, split_a_by_b
+from cdpybio.tcga.Figures.Helpers import init_ax, latex_float
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np

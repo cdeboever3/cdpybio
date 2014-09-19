@@ -7,13 +7,13 @@ Created on Jul 2, 2013
 import os as os
 import pickle as pickle
 import gc as gc
-from Data.Containers import Dataset
-import Data.Firehose as FH
+from cdpybio.tcga.Data.Containers import Dataset
+import cdpybio.tcga.Data.Firehose as FH
 
 from pandas import Series, DataFrame
 from matplotlib.pylab import savefig
 import matplotlib.pyplot as plt
-from Figures.MemoPlot import pathway_plot
+from cdpybio.tcga.Figures.MemoPlot import pathway_plot
 
 
 def is_one_gene(genes, df):
