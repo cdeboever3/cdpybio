@@ -48,9 +48,9 @@ def strip_chr(bt):
     except pd.parser.CParserError:
         pass
     df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
-    out = pbt.BedTool('\n'.join(df[0].apply(lambda x: x[3:]) + '\t' + 
-                                df[1] + '\t' + df[2]) + '\n', 
-                      from_string=True)
+    df[0] = 'chr' + df[0]
+    s = '\n'.join(df.astype(str).apply(lambda x: '\t'.join(x), axis=1)) + '\n'
+    out = pbt.BedTool(s, from_string=True)
     return out
 
 def add_chr(bt):
@@ -75,7 +75,7 @@ def add_chr(bt):
     except pd.parser.CParserError:
         pass
     df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
-    out = pbt.BedTool('\n'.join('chr' + df[0] + '\t' + 
-                                df[1] + '\t' + df[2]) + '\n', 
-                      from_string=True)
+    df[0] = df[0].apply(lambda x: x[3:])
+    s = '\n'.join(df.astype(str).apply(lambda x: '\t'.join(x), axis=1)) + '\n'
+    out = pbt.BedTool(s, from_string=True)
     return out
