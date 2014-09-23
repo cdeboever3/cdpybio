@@ -47,7 +47,7 @@ def strip_chr(bt):
     # track of it anyway).
     except pd.parser.CParserError:
         pass
-    df = pd.read_table(bt.fn, header=None, skiprows=0, dtype=str)
+    df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
     out = pbt.BedTool('\n'.join(df[0].apply(lambda x: x[3:]) + '\t' + 
                                 df[1] + '\t' + df[2]) + '\n', 
                       from_string=True)
