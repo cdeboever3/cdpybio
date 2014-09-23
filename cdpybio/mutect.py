@@ -44,7 +44,7 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True,
             tdf = tdf[tdf.judgement == 'KEEP']
         tdf = tdf[tdf.tumor_f > min_tumor_f]
         tdf = tdf[tdf.t_ref_count + tdf.t_alt_count > min_tumor_cov]
-        tdf = tdf[tdf.n_ref_count + tdf.n_alt_count > min_nromal_cov]
+        tdf = tdf[tdf.n_ref_count + tdf.n_alt_count > min_normal_cov]
         variants.append(tdf)
     variants = pd.concat(variants)
     variants.index = range(variants.shape[0])
