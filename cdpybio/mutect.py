@@ -22,12 +22,11 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True ):
         Otherwise, keep all variants.
 
     """
-    import numpy.object as npobject
     variants = []
     for i, f in enumerate(fns):
         tdf = pd.read_table(f, index_col=None, header=0, skiprows=1,
                             low_memory=False, 
-                            dtype={'contig':npobject})
+                            dtype={'contig':object})
         for t in remove:
             tdf = tdf[tdf.dbsnp_site != t]
         if keep_only:
