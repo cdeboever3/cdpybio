@@ -22,8 +22,6 @@ def write_bed_with_trackline(bed, out, trackline, add_chr=False):
     bt = pbt.BedTool('\n'.join(df.apply(lambda x: '\t'.join(x.astype(str)), 
                                         axis=1)) + '\n',
                      from_string=True)
-    elif type(bed) == pbt.BedTool:
-        bt = bed
     if add_chr:
         bt = add_chr(bt)
     bt = bt.saveas(out, trackline=trackline)
