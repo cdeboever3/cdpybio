@@ -41,13 +41,13 @@ def strip_chr(bt):
 
     """
     try:
-        df = pd.read_table(exons.fn, header=None, dtype=str)
+        df = pd.read_table(bt.fn, header=None, dtype=str)
     # If the try fails, I assume that's because the file has a trackline. Note
     # that I don't preserve the trackline (I'm not sure how pybedtools keeps
     # track of it anyway).
     except pd.parser.CParserError:
         pass
-    df = pd.read_table(exons.fn, header=None, skiprows=1, dtype=str)
+    df = pd.read_table(bt.fn, header=None, skiprows=0, dtype=str)
     out = pbt.BedTool('\n'.join(df[0].apply(lambda x: x[3:]) + '\t' + 
                                 df[1] + '\t' + df[2]) + '\n', 
                       from_string=True)
@@ -68,13 +68,13 @@ def add_chr(bt):
 
     """
     try:
-        df = pd.read_table(exons.fn, header=None, dtype=str)
+        df = pd.read_table(bt.fn, header=None, dtype=str)
     # If the try fails, I assume that's because the file has a trackline. Note
     # that I don't preserve the trackline (I'm not sure how pybedtools keeps
     # track of it anyway).
     except pd.parser.CParserError:
         pass
-    df = pd.read_table(exons.fn, header=None, skiprows=1, dtype=str)
+    df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
     out = pbt.BedTool('\n'.join('chr' + df[0] + '\t' + 
                                 df[1] + '\t' + df[2]) + '\n', 
                       from_string=True)
