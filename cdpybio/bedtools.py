@@ -19,6 +19,7 @@ def write_bed_with_trackline(bed, out, trackline, add_chr=False):
         UCSC genome browser if not present.
 
     """
+    df = pd.read_table(bed, index_col=None, header=None)
     bt = pbt.BedTool('\n'.join(df.apply(lambda x: '\t'.join(x.astype(str)), 
                                         axis=1)) + '\n',
                      from_string=True)
