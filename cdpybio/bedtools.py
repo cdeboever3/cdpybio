@@ -24,7 +24,7 @@ def write_bed_with_trackline(bed, out, trackline, add_chr=False):
                                         axis=1)) + '\n',
                      from_string=True)
     if add_chr:
-        bt = add_chr(bt)
+        bt = add_chr_to_contig(bt)
     bt = bt.saveas(out, trackline=trackline)
 
 def strip_chr(bt):
@@ -54,7 +54,7 @@ def strip_chr(bt):
     out = pbt.BedTool(s, from_string=True)
     return out
 
-def add_chr(bt):
+def add_chr_to_contig(bt):
     """Add 'chr' to chromosomes for BedTool object
 
     Parameters
