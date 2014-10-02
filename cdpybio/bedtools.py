@@ -47,8 +47,7 @@ def strip_chr(bt):
     # that I don't preserve the trackline (I'm not sure how pybedtools keeps
     # track of it anyway).
     except pd.parser.CParserError:
-        pass
-    df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
+        df = pd.read_table(bt.fn, header=None, skiprows=1, dtype=str)
     df[0] = df[0].apply(lambda x: x[3:])
     s = '\n'.join(df.astype(str).apply(lambda x: '\t'.join(x), axis=1)) + '\n'
     out = pbt.BedTool(s, from_string=True)
