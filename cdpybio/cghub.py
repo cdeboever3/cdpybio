@@ -668,7 +668,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
             try:
                 subprocess.check_call(['ssh', self.external_server, 
                                        'qsub', vc.pbs])
-            except CalledProcessError:
+            except subprocess.CalledProcessError:
                 time.sleep(10)
                 t += 1
                 pass
