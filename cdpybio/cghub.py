@@ -663,13 +663,14 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         # few times. If it doesn't work after several tries, then I'll just
         # leave the files so I can work with them afterward. Eventually I'll
         # probably just clean them up and keep a log of who doesn't work.
-        while count < tries:
+        t = 0
+        while t < tries:
             try:
                 subprocess.check_call(['ssh', self.external_server, 
                                        'qsub', vc.pbs])
             except CalledProcessError:
                 time.sleep(10)
-                tries += 1
+                t += 1
                 pass
 
     def _write_pbs_script(self, vc):
