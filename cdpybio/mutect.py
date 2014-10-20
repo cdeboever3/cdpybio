@@ -55,10 +55,10 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True,
                            u'n_ref_sum', u'n_alt_sum', u'judgement']
                 tdf = pd.DataFrame(
                     [x.split('\t') for x in res.split('\n')],
-                    columns=columns)
+                    columns=columns, dtype={'contig':object})
                 tdf = tdf.convert_objects(convert_numeric=True)
             else:
-                tdf = pd.DataFrame(columns=columns)
+                tdf = pd.DataFrame(columns=columns, dtype={'contig':object})
 
         else:
             tdf = pd.read_table(f, index_col=None, header=0, skiprows=1,
