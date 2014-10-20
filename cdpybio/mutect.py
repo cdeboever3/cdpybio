@@ -43,22 +43,24 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True,
                 'awk \'$35 == "KEEP"\' {}'.format(f), shell=True)
             if res.strip() != '': 
                 columns = [u'contig', u'position', u'context', u'ref_allele',
-                           u'alt_allele', u'tumor_name', u'normal_name', u'score',
-                           u'dbsnp_site', u'covered', u'power', u'tumor_power',
-                           u'normal_power', u'total_pairs', u'improper_pairs',
-                           u'map_Q0_reads', u't_lod_fstar', u'tumor_f',
-                           u'contaminant_fraction', u'contaminant_lod',
-                           u't_ref_count', u't_alt_count', u't_ref_sum',
-                           u't_alt_sum', u't_ref_max_mapq', u't_alt_max_mapq',
-                           u't_ins_count', u't_del_count', u'normal_best_gt',
-                           u'init_n_lod', u'n_ref_count', u'n_alt_count',
-                           u'n_ref_sum', u'n_alt_sum', u'judgement']
+                           u'alt_allele', u'tumor_name', u'normal_name',
+                           u'score', u'dbsnp_site', u'covered', u'power',
+                           u'tumor_power', u'normal_power', u'total_pairs',
+                           u'improper_pairs', u'map_Q0_reads', u't_lod_fstar',
+                           u'tumor_f', u'contaminant_fraction',
+                           u'contaminant_lod', u't_ref_count', u't_alt_count',
+                           u't_ref_sum', u't_alt_sum', u't_ref_max_mapq',
+                           u't_alt_max_mapq', u't_ins_count', u't_del_count',
+                           u'normal_best_gt', u'init_n_lod', u'n_ref_count',
+                           u'n_alt_count', u'n_ref_sum', u'n_alt_sum',
+                           u'judgement']
                 tdf = pd.DataFrame(
-                    [x.split('\t') for x in res.split('\n')],
-                    columns=columns, dtype={'contig':object})
+                    [x.split('\t') for x in res.strip().split('\n')],
+                    columns=columns)
                 tdf = tdf.convert_objects(convert_numeric=True)
             else:
-                tdf = pd.DataFrame(columns=columns, dtype={'contig':object})
+                tdf = pd.DataFrame(columns=columns)
+            tdf['contig'] = tdf.contig.astype(object)
 
         else:
             tdf = pd.read_table(f, index_col=None, header=0, skiprows=1,
