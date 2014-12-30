@@ -163,13 +163,6 @@ class GTFuseBam:
         for f in files:
             if f != mnt:
                 os.remove(f)
-        # Now clear cache.
-        files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
-        for f in files:
-            if os.path.isfile(f):
-                os.remove(f)
-            elif os.path.isdir(f):
-                shutil.rmtree(f)
         # Now unmount bam.
         t = 0
         while t < tries:
@@ -183,6 +176,13 @@ class GTFuseBam:
                 time.sleep(sleeptime)
                 t += 1
         self.mounted = False
+        # Now clear cache.
+        files = glob.glob(os.path.join(self.cache, self.analysis_id + '*'))
+        for f in files:
+            if os.path.isfile(f):
+                os.remove(f)
+            elif os.path.isdir(f):
+                shutil.rmtree(f)
 
 class ReadsFromIntervalsBam:
     def __init__(self, gtfuse_bam, intervals, bam):
@@ -706,9 +706,23 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
         self._write_pbs_script(vc)
         self._submit_pbs_script(vc)
 
-    def _submit_pbs_script(self, vc):
+    def _submit_pbs_script(self, vc, tries=10):
         import subprocess
-        subprocess.check_call(['ssh', self.external_server, 'qsub', vc.pbs])
+        import time
+        # Sometimes there is a problem submitting the PBS script, so we'll try a
+        # few times. If it doesn't work after several tries, then I'll just
+        # leave the files so I can work with them afterward. Eventually I'll
+        # probably just clean them up and keep a log of who doesn't work.
+        t = 0
+        while t < tries:
+            try:
+                subprocess.check_call(['ssh', self.external_server, 
+                                       'qsub', vc.pbs])
+                break
+            except subprocess.CalledProcessError:
+                time.sleep(10)
+                t += 1
+                pass
 
     def _write_pbs_script(self, vc):
         # Make directory to store results if it doesn't already exist.
