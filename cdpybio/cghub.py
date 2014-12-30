@@ -25,6 +25,56 @@ def bed_to_samtools_intervals(bed):
     f.close()
     return intervals
 
+class GTDownloadBam:
+    def __init__(self, analysis_id, tempdir='.', outdir='.',
+                 download=True):
+        """
+        Parameters
+        ----------
+        analysis_id : str
+            TCGA analysis_id for sample of interest
+        tempdir : str
+            Temporary directory to store bam file as it's downloaded.
+        outdir : str
+            Final directory to store downloaded bam.
+        download : boolean
+            Whether to download 
+        
+        """
+        self.analysis_id = analysis_id
+        self.tempdir = tempdir
+        self.outdir = outdir
+        if download:
+            self.download()
+
+        def download(self):
+            stderr = open(os.path.join(self.tempdir, 
+                                       '{}.err'.format(self.analysis_id)), 'w')
+                    
+            c = 'gtdownload --config-file ~/.gtdownload.cfg
+            -c ~/.cghub.pem -C
+                /raid/software/src/GeneTorrent-3.8.3/src/ \
+                -d 6f325ae2-9902-43c3-a0e5-3ec11568f154
+            subprocess.check_call(c, shell=True, stderr=stderr)
+
+
+class FLCGTDownloadVariantCallingEngine():
+    def __init__(self):
+        """
+        Parameters
+        ----------
+        analysis_id : str
+            TCGA analysis_id for sample of interest
+        
+        """
+        # This class will take a dict of tumor-normal analysis IDs, download the
+        # bams, and call variants.
+
+        # Download
+        # Move downloaded files
+        # Submit pbs script
+        # Store results
+
 class GTFuseBam:
     def __init__(self, analysis_id, mountpoint='.',
                  cache='./fusecache'):
