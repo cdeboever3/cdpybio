@@ -1,5 +1,30 @@
 import os
 
+def _pbs_header(out, err, name, threads, queue='high'):
+    """
+    Write header for PBS script
+
+    Parameters
+    ----------
+    out : str
+        Path to file for recording standard out.
+
+    err : str
+        Path to file for recording standard error.
+
+    Returns
+    -------
+    lines : str
+        Lines to be printed to shell/PBS script.
+
+    """
+    lines = ('\n'.join(['#PBS -q {}'.format(queue),
+                        '#PBS -N {}'.format(name),
+                        '#PBS -l nodes=1:ppn={}'.format(threads),
+                        '#PBS -o {}'.format(out),
+                        '#PBS -e {}\n\n'.format(err)]))
+    return lines
+
 def _cbarrett_paired_dup_removal(r1_fastqs, r2_fastqs, r1_nodup, r2_nodup,
                                  temp_dir):
     """
@@ -53,29 +78,6 @@ def _cbarrett_paired_dup_removal(r1_fastqs, r2_fastqs, r1_nodup, r2_nodup,
                   r2_nodup + '"}\'\n')
     return ''.join(lines)
 
-def _picard_coord_sort(in_bam, out_bam, picard_path, picard_memory, temp_dir):
-    """
-    Coordinate sort using Picard Tools.
-
-    Parameters
-    ----------
-    in_bam : str
-        Path to input bam file.
-
-    out_bam : str
-        Path to output bam file.
-
-    """
-    line = (' \\\n'.join(['java -Xmx{}g -jar '.format(picard_memory),
-                          '\t-XX:-UseGCOverheadLimit -XX:-UseParallelGC',
-                          '\t-Djava.io.tmpdir={} -jar'.format(temp_dir),
-                          '\t{}/SortSam.jar'.format(picard_path),
-                          '\tVALIDATION_STRINGENCY=SILENT',
-                          '\tI={}'.format(in_bam),
-                          '\tO={}'.format(out_bam),
-                          '\tSO=coordinate\n']))
-    return line
-
 def _star_align(r1_fastqs, r2_fastqs, sample, rgpl, rgpu, star_index, star_path,
                 threads):
     """
@@ -128,6 +130,29 @@ def _star_align(r1_fastqs, r2_fastqs, sample, rgpl, rgpu, star_index, star_path,
                           '\t--quantMode TranscriptomeSAM']) + '\n\n') 
     return line
 
+def _picard_coord_sort(in_bam, out_bam, picard_path, picard_memory, temp_dir):
+    """
+    Coordinate sort using Picard Tools.
+
+    Parameters
+    ----------
+    in_bam : str
+        Path to input bam file.
+
+    out_bam : str
+        Path to output bam file.
+
+    """
+    line = (' \\\n'.join(['java -Xmx{}g -jar '.format(picard_memory),
+                          '\t-XX:-UseGCOverheadLimit -XX:-UseParallelGC',
+                          '\t-Djava.io.tmpdir={} -jar'.format(temp_dir),
+                          '\t{}/SortSam.jar'.format(picard_path),
+                          '\tVALIDATION_STRINGENCY=SILENT',
+                          '\tI={}'.format(in_bam),
+                          '\tO={}'.format(out_bam),
+                          '\tSO=coordinate\n']))
+    return line
+
 def _picard_index(in_bam, index, picard_memory, picard_path, temp_dir):
     """
     Index bam file using Picard Tools.
@@ -154,33 +179,67 @@ def _picard_index(in_bam, index, picard_memory, picard_path, temp_dir):
                           '\tO={}\n\n'.format(index)]))
     return line
 
-def _pbs_header(out, err, name, threads, queue='high'):
+def _bedgraph_to_bigwig(bedgraph, bigwig, bedgraph_to_bigwig_path,
+                        bedtools_path):
+    bedtools_genome_path = os.path.join(
+        os.path.split(os.path.split(bedtools_path)[0])[0],
+        '/genomes/human.hg19.genome')
+    lines =  ' '.join(['{} {}'.format(bedgraph_to_bigwig_path, bedgraph),
+                       '{}'.format(bedtools_genome_path),
+                       '{} &\n'.format(bigwig)])
+    return lines
+
+def _coverage_bedgraph(bam, bedgraph, bedtools_path, sample_name, strand='.'):
     """
-    Write header for PBS script
+    Make lines that create a coverage bedgraph file.
 
     Parameters
     ----------
-    out : str
-        Path to file for recording standard out.
+    bam : str
+        Bam file to calculate coverage for.
 
-    err : str
-        Path to file for recording standard error.
+    bedgraph : str
+        Path to output bedgraph file.
+
+    bedtools_path : str
+        Path to bedtools.
+
+    sample_name : str
+        Sample name for naming files etc.
+
+    strand : str
+        If '+' or '-', calculate strand-specific coverage. Otherwise, calculate
+        coverage using all reads.
 
     Returns
     -------
     lines : str
-        Lines to be printed to shell/PBS script.
+        Lines to be written to PBS/shell script.
 
     """
-    lines = ('\n'.join(['#PBS -q {}'.format(queue),
-                        '#PBS -N {}'.format(name),
-                        '#PBS -l nodes=1:ppn={}'.format(threads),
-                        '#PBS -o {}'.format(out),
-                        '#PBS -e {}\n\n'.format(err)]))
+    if strand == '+' or strand == '-':
+        if strand == '+':
+            name = '{}_plus'.format(sample_name)
+        else:
+            name = '{}_minus'.format(sample_name)
+        lines = ' \\\n'.join(['{} genomecov -ibam'.format(bedtools_path),
+                              '\t{}'.format(bam),
+                              '\t-g hg19.genome -split -bg ',
+                              '\t-strand {} -trackline'.format(strand),
+                              '\t-trackopts \'name="{}"\''.format(name),
+                              '\t> {} &\n\n'.format(bedgraph)])
+    else:
+        name = sample_name
+        lines = ' \\\n'.join(['{} genomecov -ibam'.format(bedtools_path),
+                              '\t{}'.format(bam),
+                              '\t-g hg19.genome -split -bg ',
+                              '\t-trackline'.format(strand),
+                              '\t-trackopts \'name="{}"\''.format(name),
+                              '\t> {} &\n\n'.format(bedgraph)])
     return lines
 
-def _bigwig_files(in_bam, out_bigwig, bedgraph_to_bigwig_path,
-                  out_bigwig_minus=''):
+def _bigwig_files(in_bam, out_bigwig, sample_name, bedgraph_to_bigwig_path,
+                  bedtools_path, out_bigwig_minus=''):
     """
     Make bigwig coverage files.
 
@@ -205,81 +264,26 @@ def _bigwig_files(in_bam, out_bigwig, bedgraph_to_bigwig_path,
 
     """
     if out_bigwig_minus != '':
-        lines = _coverage_bedgraph(in_bam, 'plus.bg', bedtools, sample_name,
-                                   strand='+')
-        lines = _coverage_bedgraph(in_bam, 'minus.bg', bedtools,
+        lines = _coverage_bedgraph(in_bam, 'plus.bg', bedtools_path,
+                                   sample_name, strand='+')
+        lines = _coverage_bedgraph(in_bam, 'minus.bg', bedtools_path,
                                    sample_name, strand='-')
-        lines.append('wait\n\n')
-        lines.append(_bedgraph_to_bigwig('plus.bg', out_bigwig,
-                                         bedgraph_to_bigwig_path, bedtools))
-        lines.append(_bedgraph_to_bigwig('minus.bg', out_bigwig_minus,
-                                         bedgraph_to_bigwig_path, bedtools))
-        lines.append('rm plus.bg minus.bg\n\n')
+        lines += ('wait\n\n')
+        lines += (_bedgraph_to_bigwig('plus.bg', out_bigwig,
+                                      bedgraph_to_bigwig_path, bedtools_path))
+        lines += (_bedgraph_to_bigwig('minus.bg', out_bigwig_minus,
+                                      bedgraph_to_bigwig_path, bedtools_path))
+        lines += ('rm plus.bg minus.bg\n\n')
     
     else:
-        lines = _coverage_bedgraph(in_bam, 'both.bg', bedtools, sample_name)
-        lines.append(_bedgraph_to_bigwig('both.bg', out_bigwig_minus,
-                                         bedgraph_to_bigwig_path, bedtools))
-        lines.append('wait\n\n')
-        lines.append('rm both.bg\n\n')
-    
-def _bedgraph_to_bigwig(bedgraph, bigwig, bedgraph_to_bigwig_path, bedtools):
-    bedtools_genome_path = os.path.join(
-        os.path.split(os.path.split(bedtools_path)[0])[0],
-        '/genomes/human.hg19.genome')
-    lines =  ' '.join(['{} {}'.format(bedgraph_to_bigwig_path, bedgraph),
-                       '{}'.format(bedtools_genome_path),
-                       '{} &\n'.format(bigwig)])
-
-def _coverage_bedgraph(bam, bedgraph, bedtools, sample_name, strand='.'):
-    """
-    Make lines that create a coverage bedgraph file.
-
-    Parameters
-    ----------
-    bam : str
-        Bam file to calculate coverage for.
-
-    bedgraph : str
-        Path to output bedgraph file.
-
-    bedtools : str
-        Path to bedtools.
-
-    sample_name : str
-        Sample name for naming files etc.
-
-    strand : str
-        If '+' or '-', calculate strand-specific coverage. Otherwise, calculate
-        coverage using all reads.
-
-    Returns
-    -------
-    lines : str
-        Lines to be written to PBS/shell script.
-
-    """
-    if strand == '+' or strand == '-':
-        if strand == '+':
-            name = '{}_plus'.format(sample_name)
-        else:
-            name = '{}_minus'.format(sample_name)
-        lines = ' \\\n'.join(['{} genomecov -ibam'.format(bedtools),
-                              '\t{}'.format(bam),
-                              '\t-g hg19.genome -split -bg ',
-                              '\t-strand {} -trackline'.format(strand),
-                              '\t-trackopts \'name="{}"\''.format(name),
-                              '\t> {} &\n\n'.format(bedgraph)])
-    else:
-        name = sample_name
-        lines = ' \\\n'.join(['{} genomecov -ibam'.format(bedtools),
-                              '\t{}'.format(bam),
-                              '\t-g hg19.genome -split -bg ',
-                              '\t-trackline'.format(strand),
-                              '\t-trackopts \'name="{}"\''.format(name),
-                              '\t> {} &\n\n'.format(bedgraph)])
+        lines = _coverage_bedgraph(in_bam, 'both.bg', bedtools_path,
+                                   sample_name)
+        lines += (_bedgraph_to_bigwig('both.bg', out_bigwig_minus,
+                                      bedgraph_to_bigwig_path, bedtools_path))
+        lines += ('wait\n\n')
+        lines += ('rm both.bg\n\n')
     return lines
-
+    
 def _process_fastqs(fastqs, temp_dir):
     """
     Create list of temporary fastq paths.
@@ -442,10 +446,11 @@ def align_and_sort(
     aligned_bam = os.path.join(temp_dir, 'Aligned.out.bam')
     coord_sorted_bam = os.path.join(temp_dir, 'Aligned.out.coord.sorted.bam')
     bam_index = os.path.join(temp_dir, 'Aligned.out.coord.sorted.bam.bai')
-    # TODO: Make sure the copy and delete lists are correct.
+    
     # Files to copy to output directory.
     files_to_copy = [coord_sorted_bam, bam_index, 'Log.out', 'Log.final.out',
-                     'Log.progress.out', 'SJ.out.tab']
+                     'Log.progress.out', 'SJ.out.tab',
+                     'Aligned.toTranscriptome.out.bam']
     # Temporary files that can be deleted at the end of the job. We may not want
     # to delete the temp directory if the temp and output directory are the
     # same.
@@ -456,7 +461,8 @@ def align_and_sort(
                                        '{}_plus.bw'.format(sample_name))
         out_bigwig_minus = os.path.join(temp_dir,
                                         '{}_minus.bw'.format(sample_name))
-        files_to_copy.append(out_bigwig_plus, out_bigwig_minus)
+        files_to_copy.append(out_bigwig_plus)
+        files_to_copy.append(out_bigwig_minus)
     else:
         out_bigwig = os.path.join(temp_dir, '{}.bw'.format(sample_name))
 
@@ -471,7 +477,7 @@ def align_and_sort(
     if pbs:
         out = os.path.join(out_dir, '{}_alignment.out'.format(sample_name))
         err = os.path.join(out_dir, '{}_alignment.err'.format(sample_name))
-        job_name = '{}_align'.format(sample)
+        job_name = '{}_align'.format(sample_name)
         _pbs_header(out, err, job_name, threads)
 
     f.write('mkdir -p {}\n'.format(temp_dir))
@@ -485,13 +491,13 @@ def align_and_sort(
         f.write(lines)
         f.write('wait\n\n')
 
-        lines = _star_align(r1_nodup, r2_nodup, sample, rgpl, rgpu,
+        lines = _star_align(r1_nodup, r2_nodup, sample_name, rgpl, rgpu,
                             star_index, star_path, threads)
         f.write(lines)
         f.write('wait\n\n')
     else:
-        lines = _star_align(temp_r1_fastqs, temp_r2_fastqs, sample, rgpl, rgpu,
-                            star_index, star_path, threads)
+        lines = _star_align(temp_r1_fastqs, temp_r2_fastqs, sample_name, rgpl,
+                            rgpu, star_index, star_path, threads)
         f.write(lines)
         f.write('wait\n\n')
 
@@ -508,32 +514,17 @@ def align_and_sort(
 
     # Make bigwig files for displaying coverage.
     if strand_specific_cov:
-        lines = _bigwig_files(coord_sorted_bam, out_bigwig_plus,
-                              bedgraph_to_bigwig_path,
+        lines = _bigwig_files(coord_sorted_bam, out_bigwig_plus, sample_name,
+                              bedgraph_to_bigwig_path, bedtools_path,
                               out_bigwig_minus=out_bigwig_minus)
     else:
-        lines = _bigwig_files(coord_sorted_bam, out_bigwig,
-                              bedgraph_to_bigwig_path)
+        lines = _bigwig_files(coord_sorted_bam, out_bigwig, sample_name,
+                              bedgraph_to_bigwig_path, bedtools_path)
     f.write(lines)
     f.write('wait\n\n')
-    # f.write('cp {} {}\n\n'.format(' '.join(['Aligned.out.coord.sorted.bam',
-    #                                       'Aligned.out.coord.sorted.bam.bai',
-    #                                       'Log.progress.out',
-    #                                       'SJ.out.tab',
-    #                                       'Aligned.toTranscriptome.out.bam',
-    #                                       'Log.final.out',
-    #                                       'Log.out',
-    #                                       'plus.bw',
-    #                                       'minus.bw']),
-    #                             alignment))
-    # f.write('cp {} {}\n\n'.format('SJ.out.tab',
-    #                               os.path.join(ppy.root, 'data', 
-    #                                            'SJ.out.tab', 
-    #                                            '{}.SJ.out.tab'.format(sample))))
-    # f.write('cp {} {}\n\n'.format('Log.final.out',
-    #                               os.path.join(ppy.root, 'data', 
-    #                                            'Log.final.out', 
-    #                                            '{}.Log.final.out'.format(sample))))
-    # f.write('rm -r {}\n\n'.format(temp_dir))
+
+    if temp_dir != out_dir:
+        f.write('rm -r {}\n\n'.format(temp_dir))
     f.close()
-    return os.path.join(alignment, 'alignment.pbs')
+
+    return fn
