@@ -10,6 +10,47 @@ import shutil
 import subprocess
 from urllib2 import urlopen
 
+def _download_and_unzip(req, dest, out_dir):
+    """
+    Download a zipped file/directory req into out_dir and decompress it in
+    out_dir.
+
+    Parameters
+    ----------
+    req : str
+        Zipped file.
+
+    dest : str
+        Full path to save zipped file to.
+
+    out_dir : str
+        Directory to save zipped file to and decompress to.
+
+    """
+    with open(dest, 'w') as d:
+        shutil.copyfileobj(req, d)
+    subprocess.check_call('tar -xf {} -C {}'.format(dest, out_dir), shell=True)
+
+def _download_and_untar(req, dest, out_dir):
+    """
+    Download a tarball req into out_dir and decompress it in out_dir.
+
+    Parameters
+    ----------
+    req : str
+        Tarball to download.
+
+    dest : str
+        Full path to save tarball to.
+
+    out_dir : str
+        Directory to save tarball to and decompress to.
+
+    """
+    with open(dest, 'w') as d:
+        shutil.copyfileobj(req, d)
+    subprocess.check_call('tar -xf {} -C {}'.format(dest, out_dir), shell=True)
+
 def download_samtools(out_dir):
     """
     Download Samtools.
@@ -25,11 +66,7 @@ def download_samtools(out_dir):
                   'samtools-bcftools-htslib-1.0_x64-linux.tar.bz2/download')
     dest = os.path.join(out_dir,
                         'samtools-bcftools-htslib-1.0_x64-linux.tar.bz2')
-    with open(dest, 'w') as d:
-        shutil.copyfileobj(req, d)
-    subprocess.check_call('tar -xvf {} -C {}'.format(dest,
-                                                     os.path.split(dest)[0]),
-                          shell=True)
+    _download_and_untar(req, dest, out_dir)
     
 def download_hg19(out_dir, samtools_path):
     """
@@ -86,11 +123,7 @@ def download_star(out_dir):
     req = urlopen('http://it-collab01.cshl.edu/shares/gingeraslab/www-data/'
                   'dobin/STAR/STARreleases/Patches/STAR_2.3.1z15.tgz')
     dest = os.path.join(out_dir, 'STAR_2.3.1z15.tgz')
-    with open(dest, 'w') as d:
-        shutil.copyfileobj(req, d)
-    subprocess.check_call('tar -xvf {} -C {}'.format(dest,
-                                                     os.path.split(dest)[0]),
-                          shell=True)
+    _download_and_untar(req, dest, out_dir)
 
 def make_star_index(out_dir, threads, genome, gtf, star_path='STARstatic'):
     """
@@ -157,13 +190,9 @@ def download_bedtools(out_dir):
     req = urlopen('https://github.com/arq5x/bedtools2/releases/'
                   'download/v2.20.1/bedtools-2.20.1.tar.gz')
     dest = os.path.join(out_dir, 'bedtools-2.20.1.tar.gz')
-    with open(dest, 'w') as d:
-        shutil.copyfileobj(req, d)
-    subprocess.check_call('tar -xvf {} -C {}'.format(dest,
-                                                     os.path.split(dest)[0]),
-                          shell=True)
+    _download_and_untar(req, dest, out_dir)
     cwd = os.getcwd()
-    os.chdir(os.path.split(dest)[0])
+    os.chdir(os.path.join(out_dir, 'bedtools2-2.20.1'))
     subprocess.check_call('make')
     os.chdir(cwd)
 
@@ -180,11 +209,7 @@ def download_r(out_dir):
     rbase = 'R-3.1.1'
     req = urlopen('http://cran.stat.ucla.edu/src/base/R-3/R-3.1.1.tar.gz')
     dest = os.path.join(out_dir, '{}.tar.gz'.format(rbase))
-    with open(dest, 'w') as d:
-        shutil.copyfileobj(req, d)
-    subprocess.check_call('tar -xvf {} -C {}'.format(dest,
-                                                     os.path.split(dest)[0]),
-                          shell=True)
+    _download_and_untar(req, dest, out_dir)
     cwd = os.getcwd()
     os.chdir(out_dir)
     shutil.move(rbase, '{}-source'.format(rbase))
@@ -255,7 +280,7 @@ def download_r(out_dir):
 #     dest = os.path.join(ppy.root, 'software', 'rpy2-2.4.2.tar.gz')
 #     with open(dest, 'w') as d:
 #         shutil.copyfileobj(req, d)
-#     subprocess.check_call('tar -xvf {} -C {}'.format(dest, os.path.split(dest)[0]), 
+#     subprocess.check_call('tar -xf {} -C {}'.format(dest, os.path.split(dest)[0]), 
 #                           shell=True)
 #     os.chdir('rpy2-2.4.2')
 #     subprocess.check_call('python setup.py build --r-home ' + 
