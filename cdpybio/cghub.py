@@ -47,15 +47,14 @@ class GTDownloadBam:
         if download:
             self.download()
 
-        def download(self):
-            stderr = open(os.path.join(self.tempdir, 
-                                       '{}.err'.format(self.analysis_id)), 'w')
-                    
-            c = 'gtdownload --config-file ~/.gtdownload.cfg
-            -c ~/.cghub.pem -C
-                /raid/software/src/GeneTorrent-3.8.3/src/ \
-                -d 6f325ae2-9902-43c3-a0e5-3ec11568f154
-            subprocess.check_call(c, shell=True, stderr=stderr)
+    def download(self):
+        stderr = open(os.path.join(self.tempdir, 
+                                   '{}.err'.format(self.analysis_id)), 'w')
+                
+        c = ('gtdownload --config-file ~/.gtdownload.cfg -c ~/.cghub.pem -C'
+             '/raid/software/src/GeneTorrent-3.8.3/src/ -d ')
+        c += self.analysis_id
+        subprocess.check_call(c, shell=True, stderr=stderr)
 
 
 class FLCGTDownloadVariantCallingEngine():
