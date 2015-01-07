@@ -46,7 +46,7 @@ def _sj_out_acceptor(row):
 
 def read_sj_out_tab(filename):
     """Read an SJ.out.tab file as produced by the RNA-STAR aligner into a
-    pandas Dataframe
+    pandas Dataframe.
 
     Parameters
     ----------
@@ -87,7 +87,7 @@ def read_sj_out_tab(filename):
 
 def _make_sj_out_dict(fns, define_sample_name=None):
     """Read multiple sj_outs, return dict with keys as sample names and values
-    as sj_out dataframes
+    as sj_out dataframes.
 
     Parameters
     ----------
@@ -119,7 +119,8 @@ def _make_sj_out_dict(fns, define_sample_name=None):
         # reads.  Even if a junction passes the cutoff in other samples, we are
         # only concerned with unique counts.
         df = df[df.unique_junction_reads > 0]
-        index = df.chrom + ':' + df.start.astype(str) + '-' +  df.end.astype(str)
+        index = (df.chrom + ':' + df.start.astype(str) + '-' 
+                 +  df.end.astype(str))
         assert len(index) == len(set(index))
         df.index = index
         sj_outD[sample] = df
@@ -127,7 +128,7 @@ def _make_sj_out_dict(fns, define_sample_name=None):
     return sj_outD
 
 def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
-    """Filter junctions from many sj_out files and make panel
+    """Filter junctions from many sj_out files and make panel.
 
     Parameters
     ----------
@@ -193,7 +194,7 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
 
 def read_external_annotation(fn):
     """Read file with junctions from some database. This does not have to be the
-    same splice junction database used with STAR
+    same splice junction database used with STAR.
 
     Parameters
     ----------
@@ -527,7 +528,7 @@ def _make_splice_targets_dict(df, feature, strand):
 
 def _find_novel_donor_acceptor_dist(annot, ext):
     """Find nearest annotated upstream/downstream donor/acceptor for novel
-    donor/acceptors 
+    donor/acceptors.
 
     Parameters
     ----------
@@ -595,7 +596,7 @@ def _find_novel_donor_acceptor_dist(annot, ext):
 
 def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
     """Find nearest annotated upstream/downstream donor/acceptor for novel
-    donor/acceptors 
+    donor/acceptors.
 
     Parameters
     ----------
@@ -686,7 +687,7 @@ def _dist_to_annot_donor_acceptor(df, d, strand, novel_feature):
     return upstream_dists, downstream_dists
 
 def _read_log(fn, define_sample_name=None):
-    """Read STAR Log.final.out file
+    """Read STAR Log.final.out file.
 
     Parameters
     ----------
@@ -715,12 +716,12 @@ def _read_log(fn, define_sample_name=None):
     return df
 
 def make_logs_df(fns, define_sample_name=None):
-    """Make pandas DataFrame from multiple STAR Log.final.out files
+    """Make pandas DataFrame from multiple STAR Log.final.out files.
 
     Parameters
     ----------
-    fn : string
-        Path to Log.final.out file.
+    fns : string
+        List of paths to Log.final.out files.
 
     define_sample_name : function that takes string as input
         Function mapping filename to sample name. For instance, you may have the
