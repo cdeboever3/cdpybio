@@ -9,6 +9,7 @@ introduction, most functions are documented with docstrings.
 * HTSeq
 * numpy
 * pandas
+* pybedtools
 * py.test for testing
 
 # Submodules
@@ -16,7 +17,7 @@ introduction, most functions are documented with docstrings.
 ## `cghub`
 
 This submodule contains some useful methods and classes for dealing with data
-through CGHub. I'll go through the classes and useful methods.
+through CGHub. I'll go through the classes and methods.
 
 ### `GTFuseBam`
 
@@ -79,8 +80,8 @@ etc.
  * `def read_sj_out_tab`: Read `sj.out.tab` file from STAR and parse it.
  * `def read_external_annotation`: Read file with junctions from some database.
    This does not have to be the same splice junction database used with STAR.
-The file must have some specific columns. Compatible with output from the
-`gencode.make_splice_junction`.
+The file must have some specific columns (see docstring). Compatible with
+output from the `gencode.make_splice_junction_df`.
  * `def combine_sj_out`: Combine SJ.out.tab files from STAR by filtering based
    on coverage and comparing to an external annotation to discover novel
 junctions.
