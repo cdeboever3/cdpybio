@@ -3,7 +3,8 @@ import pybedtools as pbt
 
 from general import _sample_names
 
-def beds_to_boolean(beds, ref=None, **kwargs):
+def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
+                    **kwargs):
     """
     Compare a list of bed files or BedTool objects to a reference bed file and
     create a boolean matrix where each row is an interval and each column is a 1
@@ -20,6 +21,13 @@ def beds_to_boolean(beds, ref=None, **kwargs):
         Reference bed file to compare against. If no reference bed is provided,
         the provided bed files will be merged into a single bed and compared to
         that.
+
+    beds_sorted : boolean
+        Whether the bed files in beds are already sorted. If False, all bed
+        files in beds will be sorted.
+
+    ref_sorted : boolean
+        Whether the reference bed file is sorted. If False, ref will be sorted.
 
     names : list of strings
         Names to use for columns of output files. Overrides define_sample_name 
@@ -45,13 +53,15 @@ def beds_to_boolean(beds, ref=None, **kwargs):
             beds[i] = pbt.BedTool(v)
         else:
             fns.append(v.fn)
-        beds[i] = beds[i].sort()
+        if not beds_sorted:
+            beds[i] = beds[i].sort()
 
     names = _sample_names(fns, kwargs)
     if ref:
         if type(ref) == str:
             ref = pbt.BedTool(ref)
-        ref = ref.sort()
+        if not ref_sorted:
+            ref = ref.sort()
     else:
         ref = combine(beds)
     
@@ -69,7 +79,7 @@ def beds_to_boolean(beds, ref=None, **kwargs):
         bdf.ix[ind, names[i]] = 1
     return bdf
 
-def combine(beds, postmerge=True):
+def combine(beds, beds_sorted=False, postmerge=True):
     """
     Combine a list of bed files or BedTool objects into a single BedTool object.
 
@@ -78,25 +88,31 @@ def combine(beds, postmerge=True):
     beds : list
         List of paths to bed files or BedTool objects.
 
+    beds_sorted : boolean
+        Whether the bed files in beds are already sorted. If False, all bed
+        files in beds will be sorted.
+
     postmerge : boolean
         Whether to merge intervals after combining beds together. 
 
     Returns
     -------
     out : pybedtools.BedTool
-        New BedTool with intervals from all input beds.
+        New sorted BedTool with intervals from all input beds.
 
     """
     for i,v in enumerate(beds):
         if type(v) == str:
             beds[i] = pbt.BedTool(v)
-        beds[i] = beds[i].sort()
+        if not beds_sorted:
+            beds[i] = beds[i].sort()
 
     # For some reason, doing the merging in the reduce statement doesn't work. I
     # think this might be a pybedtools bug. In any fashion, I can merge
     # afterward although I think it makes a performance hit because the combined
     # bed file grows larger than it needs to.
     out = reduce(lambda x,y : x.cat(y, postmerge=False), beds)
+    out = out.sort()
     if postmerge:
         out = out.merge()
     return out
