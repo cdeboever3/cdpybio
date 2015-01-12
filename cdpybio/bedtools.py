@@ -45,12 +45,13 @@ def beds_to_boolean(beds, ref=None, **kwargs):
             beds[i] = pbt.BedTool(v)
         else:
             fns.append(v.fn)
+        beds[i] = beds[i].sort()
 
     names = _sample_names(fns, kwargs)
     if ref:
         if type(ref) == str:
             ref = pbt.BedTool(ref)
-            ref = ref.sort()
+        ref = ref.sort()
     else:
         ref = combine(beds)
     
@@ -91,10 +92,7 @@ def combine(beds, postmerge=True):
             beds[i] = pbt.BedTool(v)
         beds[i] = beds[i].sort()
 
-    out = reduce(lambda x,y : x.cat(y, postmerge=False), beds)
-    out = out.sort()
-    if postmerge:
-        out.merge()
+    out = reduce(lambda x,y : x.cat(y, postmerge=postmerge), beds)
     return out
 
 
