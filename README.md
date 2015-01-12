@@ -14,6 +14,10 @@ introduction, most functions are documented with docstrings.
 
 # Submodules
 
+## `bedtools`
+
+Methods for working with bed files. I make heavy use of pybedtools.
+
 ## `cghub`
 
 This submodule contains some useful methods and classes for dealing with data
