@@ -53,7 +53,7 @@ def strip_chr(bt):
     out = pbt.BedTool(s, from_string=True)
     return out
 
-def add_chr_to_contig(bt):
+def add_chr(bt):
     """Add 'chr' to chromosomes for BedTool object
 
     Parameters
