@@ -88,8 +88,9 @@ def combine(beds, postmerge=True):
     for i,v in enumerate(beds):
         if type(v) == str:
             beds[i] = pbt.BedTool(v)
+        beds[i] = beds[i].sort()
 
-    out = reduce(lambda x,y : x.cat(y), beds)
+    out = reduce(lambda x,y : x.cat(y, postmerge=False), beds)
     out.sort()
     if postmerge:
         out.merge()
