@@ -92,7 +92,13 @@ def combine(beds, postmerge=True):
             beds[i] = pbt.BedTool(v)
         beds[i] = beds[i].sort()
 
-    out = reduce(lambda x,y : x.cat(y, postmerge=postmerge), beds)
+    # For some reason, doing the merging in the reduce statement doesn't work. I
+    # think this might be a pybedtools bug. In any fashion, I can merge
+    # afterward although I think it makes a performance hit because the combined
+    # bed file grows larger than it needs to.
+    out = reduce(lambda x,y : x.cat(y, postmerge=False), beds)
+    if postmerge:
+        out = out.merge()
     return out
 
 
