@@ -1,3 +1,4 @@
+import copy
 import pandas as pd
 import pybedtools as pbt
 
@@ -46,6 +47,7 @@ def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
         that overlaps each interval in the reference bed file. 
 
     """
+    beds = copy.deepcopy(beds)
     fns = []
     for i,v in enumerate(beds):
         if type(v) == str:
@@ -101,6 +103,7 @@ def combine(beds, beds_sorted=False, postmerge=True):
         New sorted BedTool with intervals from all input beds.
 
     """
+    beds = copy.deepcopy(beds)
     for i,v in enumerate(beds):
         if type(v) == str:
             beds[i] = pbt.BedTool(v)
