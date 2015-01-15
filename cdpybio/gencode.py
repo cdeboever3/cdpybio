@@ -2,6 +2,7 @@ import pdb
 import sys
 
 import pandas as pd
+import pybedtools as pbt
 
 def _gencode_donor(chrom, start, end, strand):
     if strand == '+':
@@ -15,6 +16,47 @@ def _gencode_acceptor(chrom, start, end, strand):
     if strand == '-':
         return '{}:{}:{}'.format(chrom, start, strand)
 
+def make_gene_bed(fn, out=None):
+    """
+    Make a bed file with the start and stop coordinates for each gene. Since
+    each gene has a single interval, the introns are by definition included in 
+    the interval.
+
+    Parameters
+    ----------
+    fn : str
+        Filename of the Gencode gtf file.
+
+    out : str
+        If provided, the bed file will be written to a file with this name.
+
+    Returns
+    -------
+    bed : pybedtools.BedTool
+        A pybedtools BedTool object.
+
+    """
+    import pybedtools as pbt
+    bed_lines = []
+    with open(fn) as f:
+        line = f.readline().strip()
+        while line != '':
+            if line[0] != '#':
+                line = line.split('\t')
+                if line[2] == 'gene':
+                    chrom = line[0]
+                    start = str(int(line[3]) - 1)
+                    end = line[4]
+                    name = line[8].split(';')[0].split(' ')[1].strip('"')
+                    strand = line[6]
+                    bed_lines.append('\t'.join([chrom, start, end, name, '.',
+                                                strand]) + '\n')
+            line = f.readline().strip()
+    bt = pbt.BedTool(''.join(bed_lines), from_string=True)
+    if out:
+        bt.saveas(out)
+    return bt
+
 def make_transcript_gene_se(fn):
     """
     Make a Pandas Series with transcript ID's as the index and values as the
@@ -22,8 +64,8 @@ def make_transcript_gene_se(fn):
 
     Parameters
     ----------
-    fn : str of filename 
-        Filename of the Gencode gtf file
+    fn : str
+        Filename of the Gencode gtf file.
 
     Returns
     -------
