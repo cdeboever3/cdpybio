@@ -53,6 +53,8 @@ def make_gene_bed(fn, out=None):
                                                 strand]) + '\n')
             line = f.readline().strip()
     bt = pbt.BedTool(''.join(bed_lines), from_string=True)
+    # We'll sort so bedtools operations can be done faster.
+    bt = bt.sort()
     if out:
         bt.saveas(out)
     return bt
