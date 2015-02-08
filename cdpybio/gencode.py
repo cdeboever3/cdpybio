@@ -86,7 +86,7 @@ def make_feature_bed(gtf, feature, out=None):
 
     """
     bed_lines = []
-    with open(fn) as f:
+    with open(gtf) as f:
         line = f.readline().strip()
         while line != '':
             if line[0] != '#':
