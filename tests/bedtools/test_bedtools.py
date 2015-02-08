@@ -43,3 +43,16 @@ class TestCombine:
             index=array([0, 1, 2], dtype='object'),
             columns=[u'chrom', u'start', u'end'])
         assert_frame_equal(df, tdf, check_names=True)
+
+class TestIntervalsToBed:
+    def test_intervals_to_bed(self):
+        intervals = ['chr1:100-200', 'chr2:200-300']
+        cpb.bedtools.intervals_to_bed(intervals)
+
+    def test_intervals_to_bed_strand(self):
+        intervals = ['chr1:100-200:+', 'chr2:200-300:-']
+        cpb.bedtools.intervals_to_bed(intervals)
+
+    def test_intervals_to_bed_mixed(self):
+        intervals = ['chr1:100-200:+', 'chr2:200-300']
+        cpb.bedtools.intervals_to_bed(intervals)

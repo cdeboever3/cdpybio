@@ -10,9 +10,11 @@ import cdpybio as cpb
 class TestMakeFeatureBed:
     def test_make_feature_bed_gene(self):
         bed = cpb.gencode.make_feature_bed('annot.gtf', 'gene')
+        bed.saveas('genes.bed')
     
     def test_make_feature_bed_transcript(self):
         bed = cpb.gencode.make_feature_bed('annot.gtf', 'gene')
+        bed.saveas('transcripts.bed')
 
 class TestMakeGffutilsDb:
     def test_make_gffutils_db(self):

@@ -198,3 +198,34 @@ def add_chr(bt):
     s = '\n'.join(df.astype(str).apply(lambda x: '\t'.join(x), axis=1)) + '\n'
     out = pbt.BedTool(s, from_string=True)
     return out
+
+def intervals_to_bed(intervals):
+    """
+    Convert list of intervals of format chr1:100-200 or chr1:100-200:+ to 
+    BedTool object.
+
+    Parameters
+    ----------
+    intervals : array-like
+        List of intervals.
+
+    Returns
+    -------
+    bt : pybedtools.BedTool
+        BedTool with one line for each interval.
+
+    """
+    import re
+    strand = re.compile('(.*):(.*)-(.*):(\+|-)')
+    no_strand = re.compile('(.*):(.*)-(.*)')
+    bed_lines = []
+    s = False
+    for i in intervals:
+        m = strand.match(i)
+        if m:
+            bed_lines.append('\t'.join([m.group(x) for x in range(1, 5)]))
+        else:
+            m = no_strand.match(i)
+            if m:
+                bed_lines.append('\t'.join([m.group(x) for x in range(1, 4)]))
+    bt = pbt.BedTool('\n'.join(bed_lines) + '\n', from_string=True)
