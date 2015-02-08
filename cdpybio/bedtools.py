@@ -229,3 +229,4 @@ def intervals_to_bed(intervals):
             if m:
                 bed_lines.append('\t'.join([m.group(x) for x in range(1, 4)]))
     bt = pbt.BedTool('\n'.join(bed_lines) + '\n', from_string=True)
+    return bt
