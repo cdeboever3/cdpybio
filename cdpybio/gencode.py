@@ -91,7 +91,7 @@ def make_feature_bed(gtf, feature, out=None):
         while line != '':
             if line[0] != '#':
                 line = line.split('\t')
-                if line[2] == 'gene':
+                if line[2] == feature:
                     chrom = line[0]
                     start = str(int(line[3]) - 1)
                     end = line[4]
