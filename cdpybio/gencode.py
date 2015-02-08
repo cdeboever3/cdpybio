@@ -82,26 +82,35 @@ def make_feature_bed(gtf, feature, out=None):
     Returns
     -------
     bed : pybedtools.BedTool
-        A sorted pybedtools BedTool object. Note that I convert the one-based
-        coordinates from the GTF file to zero-based coordinates.
+        A sorted pybedtools BedTool object. 
 
     """
-    import pybedtools as pbt
+    import HTSeq
+    gtf = HTSeq.GFF_Reader(gtf)
+    it = iter(gtf)
+
     bed_lines = []
-    with open(gtf) as f:
-        line = f.readline().strip()
-        while line != '':
-            if line[0] != '#':
-                line = line.split('\t')
-                if line[2] == feature:
-                    chrom = line[0]
-                    start = str(int(line[3]) - 1)
-                    end = line[4]
-                    name = line[8].split(';')[0].split(' ')[1].strip('"')
-                    strand = line[6]
-                    bed_lines.append('\t'.join([chrom, start, end, name, '.',
-                                                strand]) + '\n')
-            line = f.readline().strip()
+    
+    try:
+        line = it.next()
+        if line.type == feature:
+            chrom = line.iv.chrom
+            start = str(line.iv.start)
+            end = str(line.iv.end)
+            if feature == 'gene':
+                name = line.attr['gene_id']
+            elif feature == 'transcript':
+                name = line.attr['transcript_id']
+            # TODO: Perhaps implement a smarter naming scheme for things that
+            # aren't genes or transcripts.
+            else:
+                name = line.attr['transcript_id']
+            strand = line.iv.strand
+
+            bed_lines.append('\t'.join([chrom, start, end, name, '.',
+                                        strand]) + '\n')
+    except StopIteration:
+        pass
     bt = pbt.BedTool(''.join(bed_lines), from_string=True)
     # We'll sort so bedtools operations can be done faster.
     bt = bt.sort()
