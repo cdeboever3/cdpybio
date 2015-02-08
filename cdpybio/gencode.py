@@ -90,26 +90,27 @@ def make_feature_bed(gtf, feature, out=None):
     it = iter(gtf)
 
     bed_lines = []
-    try:
-        line = it.next()
-        if line.type == feature:
-            chrom = line.iv.chrom
-            start = str(line.iv.start)
-            end = str(line.iv.end)
-            if feature == 'gene':
-                name = line.attr['gene_id']
-            elif feature == 'transcript':
-                name = line.attr['transcript_id']
-            # TODO: Perhaps implement a smarter naming scheme for things that
-            # aren't genes or transcripts.
-            else:
-                name = line.attr['transcript_id']
-            strand = line.iv.strand
+    while True:
+        try:
+            line = it.next()
+            if line.type == feature:
+                chrom = line.iv.chrom
+                start = str(line.iv.start)
+                end = str(line.iv.end)
+                if feature == 'gene':
+                    name = line.attr['gene_id']
+                elif feature == 'transcript':
+                    name = line.attr['transcript_id']
+                # TODO: Perhaps implement a smarter naming scheme for things that
+                # aren't genes or transcripts.
+                else:
+                    name = line.attr['transcript_id']
+                strand = line.iv.strand
 
-            bed_lines.append('\t'.join([chrom, start, end, name, '.',
-                                        strand]) + '\n')
-    except StopIteration:
-        pass
+                bed_lines.append('\t'.join([chrom, start, end, name, '.',
+                                            strand]) + '\n')
+        except StopIteration:
+            break
     bt = pbt.BedTool(''.join(bed_lines), from_string=True)
     # We'll sort so bedtools operations can be done faster.
     bt = bt.sort()
