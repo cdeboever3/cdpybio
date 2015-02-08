@@ -1,7 +1,6 @@
 import pdb
 import sys
 
-import gffutils
 import pandas as pd
 import pybedtools as pbt
 
@@ -16,7 +15,6 @@ def _gencode_acceptor(chrom, start, end, strand):
         return '{}:{}:{}'.format(chrom, end, strand)
     if strand == '-':
         return '{}:{}:{}'.format(chrom, start, strand)
-
 
 def load_gffutils_db(f):
     """
@@ -33,6 +31,7 @@ def load_gffutils_db(f):
         gffutils feature database.
 
     """
+    import gffutils
     db = gffutils.FeatureDB(f, keep_order=True)
     return db
 
@@ -54,6 +53,7 @@ def make_gffutils_db(gtf, db):
         gffutils feature database.
 
     """
+    import gffutils
     out_db = gffutils.create_db(gtf,
                                 db,
                                 keep_order=True,
@@ -97,7 +97,8 @@ def make_feature_bed(gtf, feature, out=None):
                     chrom = line[0]
                     start = str(int(line[3]) - 1)
                     end = line[4]
-                    name = line[8].split(';')[0].split(' ')[1].strip('"')
+                    if feature == 'gene':
+                        name = line[8].split(';')[0].split(' ')[1].strip('"')
                     strand = line[6]
                     bed_lines.append('\t'.join([chrom, start, end, name, '.',
                                                 strand]) + '\n')
