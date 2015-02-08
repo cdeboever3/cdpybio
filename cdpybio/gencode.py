@@ -85,38 +85,33 @@ def make_feature_bed(gtf, feature, out=None):
         A sorted pybedtools BedTool object. 
 
     """
-    import HTSeq
-    gtf = HTSeq.GFF_Reader(gtf)
-    it = iter(gtf)
-
     bed_lines = []
-    while True:
-        try:
-            line = it.next()
-            if line.type == feature:
-                chrom = line.iv.chrom
-                start = str(line.iv.start)
-                end = str(line.iv.end)
-                if feature == 'gene':
-                    name = line.attr['gene_id']
-                elif feature == 'transcript':
-                    name = line.attr['transcript_id']
-                # TODO: Perhaps implement a smarter naming scheme for things that
-                # aren't genes or transcripts.
-                else:
-                    name = line.attr['transcript_id']
-                strand = line.iv.strand
-
-                bed_lines.append('\t'.join([chrom, start, end, name, '.',
-                                            strand]) + '\n')
-        except StopIteration:
-            break
+    with open(fn) as f:
+        line = f.readline().strip()
+        while line != '':
+            if line[0] != '#':
+                line = line.split('\t')
+                if line[2] == 'gene':
+                    chrom = line[0]
+                    start = str(int(line[3]) - 1)
+                    end = line[4]
+                    if feature == 'gene':
+                        name = line[8].split(';')[0].split(' ')[1].strip('"')
+                    else:
+                        # TODO: I may want to have some smarter naming for
+                        # things that aren't genes or transcripts.
+                        name = line[8].split(';')[1].split(' ')[1].strip('"')
+                    strand = line[6]
+                    bed_lines.append('\t'.join([chrom, start, end, name, '.',
+                                                strand]) + '\n')
+            line = f.readline().strip()
     bt = pbt.BedTool(''.join(bed_lines), from_string=True)
     # We'll sort so bedtools operations can be done faster.
     bt = bt.sort()
     if out:
         bt.saveas(out)
     return bt
+
 
 def make_gene_bed(fn, out=None):
     """
