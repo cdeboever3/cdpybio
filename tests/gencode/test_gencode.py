@@ -7,6 +7,13 @@ import pytest
 
 import cdpybio as cpb
 
+class TestMakeFeatureBed:
+    def test_make_feature_bed_gene(self):
+        bed = cpb.gencode.make_feature_bed('annot.gtf', 'gene')
+    
+    def test_make_feature_bed_transcript(self):
+        bed = cpb.gencode.make_feature_bed('annot.gtf', 'gene')
+
 class TestMakeGffutilsDb:
     def test_make_gffutils_db(self):
         if os.path.exists('annot.db'):

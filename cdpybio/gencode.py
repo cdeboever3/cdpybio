@@ -17,6 +17,7 @@ def _gencode_acceptor(chrom, start, end, strand):
     if strand == '-':
         return '{}:{}:{}'.format(chrom, start, strand)
 
+
 def load_gffutils_db(f):
     """
     Load database for gffutils. 
@@ -58,6 +59,55 @@ def make_gffutils_db(gtf, db):
                                 keep_order=True,
                                 infer_gene_extent=False)
     return out_db 
+
+def make_feature_bed(gtf, feature, out=None):
+    """
+    Make a bed file with the start and stop coordinates for all of a particular
+    geature in Gencode. Valid features are the features present in the third
+    column of the Gencode GTF file.
+
+    Parameters
+    ----------
+    gtf : str
+        Filename of the Gencode gtf file.
+
+    feature : str
+        Feature from third column of Gencode GTF file. As of v19, these include
+        CDS, exon, gene, Selenocysteine, start_codon, stop_codon, transcript,
+        and UTR.
+
+    out : str
+        If provided, the bed file will be written to a file with this name.
+
+    Returns
+    -------
+    bed : pybedtools.BedTool
+        A sorted pybedtools BedTool object. Note that I convert the one-based
+        coordinates from the GTF file to zero-based coordinates.
+
+    """
+    import pybedtools as pbt
+    bed_lines = []
+    with open(gtf) as f:
+        line = f.readline().strip()
+        while line != '':
+            if line[0] != '#':
+                line = line.split('\t')
+                if line[2] == feature:
+                    chrom = line[0]
+                    start = str(int(line[3]) - 1)
+                    end = line[4]
+                    name = line[8].split(';')[0].split(' ')[1].strip('"')
+                    strand = line[6]
+                    bed_lines.append('\t'.join([chrom, start, end, name, '.',
+                                                strand]) + '\n')
+            line = f.readline().strip()
+    bt = pbt.BedTool(''.join(bed_lines), from_string=True)
+    # We'll sort so bedtools operations can be done faster.
+    bt = bt.sort()
+    if out:
+        bt.saveas(out)
+    return bt
 
 def make_gene_bed(fn, out=None):
     """
