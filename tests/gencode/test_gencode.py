@@ -1,10 +1,21 @@
 from copy import deepcopy
+import os
 import pandas as pd
 from pandas.util.testing import assert_frame_equal
 from pandas.util.testing import assert_series_equal
 import pytest
 
 import cdpybio as cpb
+
+class TestMakeGffutilsDb:
+    def test_make_gffutils_db(self):
+        if os.path.exists('annot.db'):
+            os.remove('annot.db')
+        cpb.gencode.make_gffutils_db('annot.gtf', 'annot.db')
+
+class TestLoadGffutilsDb:
+    def test_load_gffutils_db(self):
+        db = cpb.gencode.load_gffutils_db('annot.db')
 
 class TestMakeTranscriptGeneSe:
     def test_two_genes(self):
