@@ -100,7 +100,7 @@ def make_feature_bed(gtf, feature, out=None):
                     else:
                         # TODO: I may want to have some smarter naming for
                         # things that aren't genes or transcripts.
-                        name = line[8].split(';')[1].split(' ')[1].strip('"')
+                        name = line[8].split(';')[1].split(' ')[2].strip('"')
                     strand = line[6]
                     bed_lines.append('\t'.join([chrom, start, end, name, '.',
                                                 strand]) + '\n')
