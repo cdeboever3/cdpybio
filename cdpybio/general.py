@@ -1,3 +1,32 @@
+import re
+R_REGEX = re.compile('(.*):(.*)-(.*)')
+R_REGEX_STRAND = re.compile('(.*):(.*)-(.*):(.*)')
+
+def parse_region(region):
+    """
+    Parse region of type chr1:10-20 or chr1:10-20:+
+
+    Parameters:
+    -----------
+
+    region : str
+        Region of type chr1:10-20 or chr1:10-20:+.
+
+    Returns
+    -------
+    groups : tuple
+        Tuple of groups from regex e.g. (chr1, 10, 20) or (chr1, 10, 20, +).
+
+    """
+    m = R_REGEX_STRAND.search(region)
+    if not m:
+        m = R_REGEX.search(region)
+    if m:
+        groups = m.groups()
+        return groups
+    else:
+        return None
+
 def _sample_names(files, kwargs):
     """
     Make sample (or other) names.
