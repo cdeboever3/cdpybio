@@ -1,11 +1,12 @@
 import re
 
 import pandas
+import pybedtools as pbt
 import pysam
 
 from general import parse_region
 
-def get_region_counts(region, bam, stranded=False):
+def get_region_nt_counts(region, bam, stranded=False):
     """
     Get counts of each nucleotide from a bam file for a given region. If R1 and
     R2 reads both overlap a position, only one count will be added. If the R1
@@ -29,13 +30,13 @@ def get_region_counts(region, bam, stranded=False):
         indexed).
 
     stranded : boolean
-        Boolean indicating whether data is stranded and stranded counts should 
-        be returned. Assumes R1 read on reverse strand implies + strand coverage
-        etc.
+        Boolean indicating whether read data is stranded and stranded nucleotide
+        counts should be returned. Assumes R1 read on reverse strand implies +
+        strand coverage etc.
 
     Returns
     -------
-    out : pandas.DataFrame
+    counts : pandas.DataFrame
         Data frame with the counts for each base in the region. The index of
         this data frame is one-based for compatibility with VCF files.
 
@@ -144,21 +145,61 @@ def _pos_nt(pr, pos, stranded=False):
         nt = '{}{}'.format(nt, strand)
     return nt
 
-def get_counts(bam, vcf, bed):
-    # I'll probably need to just make a few big lists and make them into a
-    # reasonable format at the end and save to a file. 
+def nt_counts(bam, positions, stranded=False, vcf=False, bed=False):
+    """
+    Find the number of nucleotides covered at all positions in a bed or vcf
+    file.
+
+    Parameters
+    ----------
+    bam : str or pysam.calignmentfile.AlignmentFile 
+        Bam file opened with pysam or path to bam file (must
+        be sorted and indexed).
     
-    
-    #base_counts = pd.DataFrame(index=sample_hets.index, 
-    #                           columns=['A', 'T', 'C', 'G'])
+    positions : str or pybedtools.BedTool
+        Path to bed or vcf file or pybedtools.BedTool object. The extension is
+        used to determine whether the file is a bed or vcf (.bed vs .vcf).
 
-    if vcf:
+    stranded : boolean
+        Boolean indicating whether read data is stranded and stranded nucleotide
+        counts should be returned. Assumes R1 read on reverse strand implies +
+        strand coverage etc.
 
-    # iterate through regions
-    # If POS is the position in the VCF file, I need to use samfile.pileup on
-    # chr1:POS - 1:POS - 1
+    vcf : boolean
+        Set to True if you are providing a vcf file that doesn't have a .vcf
+        suffix.
 
+    bed : boolean
+        Set to True if you are providing a bed file that doesn't have a .bed
+        suffix.
 
-for s in allele_counts.index:
-    allele_counts.ix[s] = pd.Series(nd)
+    Returns
+    -------
+    counts : pandas.DataFrame
+        Data frame with the counts for each base in the region. The index of
+        this data frame is one-based for compatibility with VCF files.
 
+    """
+    if not bed and not vcf:
+        if type(positions) == pbt.bedtool.BedTool:
+            bed = True
+            df = positions.to_dataframe()
+        assert type(positions) is str, ('positions must be BedTool, bed file, '
+                                        'or vcf file')
+        if positions[-4:] == '.bed':
+            bed = True
+            df = pbt.BedTool(positions).to_dataframe()
+        if positions[-4:] == '.vcf':
+            from variants import vcf_as_df
+            tdf = vcf_as_df(positions)
+            df = pd.DataFrame(index=tdf.index)
+            df['chrom'] = tdf.CHROM
+            df['start'] = tdf.POS - 1
+            df['end'] = tdf.POS
+
+    res = []
+    for i in df.index:
+        region = [df.ix[i, 'chrom'], df.ix[i, 'start'], df.ix[i, 'end']]
+        res.append(get_region_nt_counts(region, bam, stranded))
+    res = pd.concat(res)
+    return res
