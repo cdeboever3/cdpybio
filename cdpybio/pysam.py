@@ -7,7 +7,10 @@ from general import parse_region
 
 def get_region_counts(region, bam, stranded=False):
     """
-    Get counts of each nucleotide from a bam file for a given region.
+    Get counts of each nucleotide from a bam file for a given region. If R1 and
+    R2 reads both overlap a position, only one count will be added. If the R1
+    and R2 reads disagree at a position they both overlap, that read pair is not
+    used for that position.  Can optionally output strand-specific counts.
 
     Parameters
     ----------
@@ -37,10 +40,10 @@ def get_region_counts(region, bam, stranded=False):
         this data frame is one-based for compatibility with VCF files.
 
     """
-    # TODO: I should figure out what the different values are that are possible
-    # to get back (so far I only have ATCGN). Can I get deletions and
-    # insertions? 
-    # TODO: Strand-specific counting, don't double count for overlapping reads.
+    # TODO: I should figure out what the different possible values are that
+    # pysam could give me back (so far I only have ATCGN). Can I get deletions
+    # and insertions? 
+    # TODO: This could probably be parallelized.
     if type(bam) == str:
         bam = pysam.AlignmentFile(bam, 'rb')
 
@@ -66,13 +69,34 @@ def get_region_counts(region, bam, stranded=False):
     if stranded:
         cols = ['{}+'.format(x) for x in cols] + ['{}-'.format(x) for x in cols]
     counts = pd.DataFrame(0, index=ind, columns=cols)
-        
-    for pc in pp:
+    
+    for pc in pp: 
+        # Most of this code deals with R1 and R2 reads that overlap so that we
+        # don't get two counts from one fragment.
         pos = pc.reference_pos + 1
+        r1_qnames = []
+        r1_nts = []
+        r2_qnames = []
+        r2_nts = []
         for pr in pc.pileups:
+            qnames = [r1_qnames, r2_qnames][pr.alignment.is_read2]
+            nts = [r1_nts, r2_nts][pr.alignment.is_read2]
             nt = _pos_nt(pr, pc.reference_pos, stranded)
             if nt:
-                counts.ix['{}:{}'.format(chrom, pos), nt] += 1
+                qnames.append(pr.alignment.qname)
+                nts.append(nt)
+        r1 = pd.Series(r1_nts, index=r1_qnames)
+        r2 = pd.Series(r2_nts, index=r2_qnames)
+        df = pd.DataFrame([r1, r2], index=['R1', 'R2']).T
+        singles = df[df.isnull().sum(axis=1) == 1]
+        doubles = df.dropna()
+        vcs = []
+        vcs.append(singles['R1'].value_counts())
+        vcs.append(singles['R2'].value_counts())
+        doubles = doubles[doubles.R1 == doubles.R2]
+        vcs.append(doubles.R1.value_counts())
+        for vc in vcs:
+            counts.ix['{}:{}'.format(chrom, pos), vc.index] += vc
     return counts
 
 def _pos_nt(pr, pos, stranded=False):
