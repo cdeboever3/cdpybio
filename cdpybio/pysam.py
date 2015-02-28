@@ -106,7 +106,7 @@ def _pos_nt(pr, pos, stranded=False):
     bases = dict(zip(pr.alignment.get_reference_positions(), 
                      list(pr.alignment.seq.upper())))
     if pos in bases.keys():
-        nt = bases[pc.reference_pos]
+        nt = bases[pos]
     if nt and stranded:
         strand = None
         if pr.alignment.is_read1 and pr.alignment.is_reverse:
