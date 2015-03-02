@@ -21,7 +21,7 @@ def main():
                         help='Bed file defining positions to be counted.')
     parser.add_argument('--stranded', 
                         help='Count nucleotides in a strand-specific manner.',
-                        action=store_true)
+                        action='store_true')
     args = parser.parse_args()
 
     bam = args.bam
