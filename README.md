@@ -89,9 +89,9 @@ Some methods that are generally useful.
 
 Methods for working with MuTect output.
 
-## `pysam`
+## `pysamext`
 
-Provides some additional functionality on top of pysam.
+Provides extended functionality on top of pysam.
 
 ## `star`
 
