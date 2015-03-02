@@ -10,6 +10,8 @@ introduction, most functions are documented with docstrings.
 * numpy
 * pandas
 * pybedtools
+* pysam (v0.6 or greater)
+* PyVCF
 * py.test for testing
 
 # Submodules
@@ -79,6 +81,18 @@ easier to work with.
    information about each splice site such as gene, strand, acceptor, donor,
 etc.
 
+## `general`
+
+Some methods that are generally useful.
+
+## `mutect`
+
+Methods for working with MuTect output.
+
+## `pysam`
+
+Provides some additional functionality on top of pysam.
+
 ## `star`
 
  * `def read_sj_out_tab`: Read `sj.out.tab` file from STAR and parse it.
@@ -91,3 +105,7 @@ output from the `gencode.make_splice_junction_df`.
 junctions.
  * `def make_logs_df`: Make pandas DataFrame from multiple STAR Log.final.out
    files.
+
+## `variants`
+
+Useful for tools for working with DNA variants.
