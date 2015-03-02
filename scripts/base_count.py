@@ -39,7 +39,7 @@ def main():
     elif bed:
         positions = bed
 
-    df = cpb.pysam.nt_counts(bam, positions, stranded=stranded, vcf=vcf,
+    df = cpb.pysamext.nt_counts(bam, positions, stranded=stranded, vcf=vcf,
                              bed=bed)
     df.to_csv(counts, sep='\t')
 
