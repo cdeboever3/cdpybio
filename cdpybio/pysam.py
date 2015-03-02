@@ -1,6 +1,6 @@
 import re
 
-import pandas
+import pandas as pd
 import pybedtools as pbt
 import pysam
 
