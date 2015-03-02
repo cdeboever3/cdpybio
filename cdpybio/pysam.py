@@ -182,20 +182,23 @@ def nt_counts(bam, positions, stranded=False, vcf=False, bed=False):
     """
     if not bed and not vcf:
         if type(positions) == pbt.bedtool.BedTool:
-            bed = True
             df = positions.to_dataframe()
         assert type(positions) is str, ('positions must be BedTool, bed file, '
                                         'or vcf file')
         if positions[-4:] == '.bed':
             bed = True
-            df = pbt.BedTool(positions).to_dataframe()
-        if positions[-4:] == '.vcf':
-            from variants import vcf_as_df
-            tdf = vcf_as_df(positions)
-            df = pd.DataFrame(index=tdf.index)
-            df['chrom'] = tdf.CHROM
-            df['start'] = tdf.POS - 1
-            df['end'] = tdf.POS
+        elif positions[-4:] == '.vcf':
+            vcf = True
+
+    if bed:
+        df = pbt.BedTool(positions).to_dataframe()
+    elif vcf:
+        from variants import vcf_as_df
+        tdf = vcf_as_df(positions)
+        df = pd.DataFrame(index=tdf.index)
+        df['chrom'] = tdf.CHROM
+        df['start'] = tdf.POS - 1
+        df['end'] = tdf.POS
 
     res = []
     for i in df.index:
