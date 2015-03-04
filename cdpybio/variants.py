@@ -1,17 +1,18 @@
+import gzip
 import os
 
 import pandas as pd
-import vcf
+import vcf as pyvcf
 
 def record_variant_id(record):
-    """Get variant ID from vcf.model._Record"""
+    """Get variant ID from pyvcf.model._Record"""
     if record.ID:
         return record.ID
     else:
         return record.CHROM + ':' + str(record.POS)
     
 def df_variant_id(row):
-    """Get variant ID from vcf in DataFrame"""
+    """Get variant ID from pyvcf in DataFrame"""
     if row['ID'] != '.':
         return row['ID']
     else:
@@ -27,6 +28,58 @@ def bed_variant_id(interval):
 def bed_variant_position(interval):
     """Get variant position from BedTool interval"""
     return interval.fields[0] + ':' + interval.fields[1]
+
+def wasp_snp_directory(vcf, directory, sample_name=None):
+    """
+    Convert VCF file into input for WASP. Only bi-allelic heterozygous sites are
+    used.
+
+    Parameters:
+    -----------
+    vcf : str
+        Path to VCF file.
+
+    directory : str
+        Output directory. This is the directory that will hold the files for
+        WASP.
+
+    sample_name : str
+        If provided, use this sample name to get heterozygous SNPs from VCF
+        file.
+
+    """
+    chrom = []
+    pos = []
+    ref = []
+    alt = []
+    vcf_reader = pyvcf.Reader(open(vcf, 'r'))
+    if sample_name:
+        def condition(record, sample_name):
+            return sample_name in [x.sample for x in record.get_hets()]
+    else:
+        def condition(record, sample_name):
+            return len(record.get_hets()) > 0
+    for record in vcf_reader:
+        if condition(record, sample_name):
+            if len(record.ALT) == 1:
+                chrom.append(record.CHROM)
+                pos.append(record.POS)
+                ref.append(record.REF)
+                alt.append(record.ALT[0].sequence)
+    df = pd.DataFrame([chrom, pos, ref, alt], 
+                      index=['chrom', 'position', 'RefAllele', 'AltAllele']).T
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    for c in set(df.chrom):
+        tdf = df[df.chrom == c]
+        if tdf.shape[0] > 0:
+            f = gzip.open(os.path.join(directory, '{}.snps.txt.gz'.format(c)),
+                          'wb')
+            lines = (tdf.position.astype(str) + '\t' + tdf.RefAllele + '\t' +
+                     tdf.AltAllele)
+            f.write('position\tRefAllele\tAltAllele\n')
+            f.write('\n'.join(lines) + '\n')
+            f.close()
 
 def vcf_as_df(fn):
     """
@@ -71,12 +124,12 @@ def make_het_matrix(fn):
     # TODO: parallelize?
     vcf_df = vcf_as_df(fn)
     variant_ids = vcf_df.apply(lambda x: df_variant_id(x), axis=1)
-    vcf_reader = vcf.Reader(open(fn, 'r'))
+    vcf_reader = pyvcf.Reader(open(fn, 'r'))
     record = vcf_reader.next()
     hets = pd.DataFrame(0, index=variant_ids,
                         columns=[x.sample for x in record.samples])
     
-    vcf_reader = vcf.Reader(open(fn, 'r'))
+    vcf_reader = pyvcf.Reader(open(fn, 'r'))
     for record in vcf_reader:
         h = record.get_hets()
         i = record_variant_id(record)
