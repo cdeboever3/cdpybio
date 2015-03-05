@@ -77,7 +77,6 @@ def wasp_snp_directory(vcf, directory, sample_name=None):
                           'wb')
             lines = (tdf.position.astype(str) + '\t' + tdf.RefAllele + '\t' +
                      tdf.AltAllele)
-            f.write('position\tRefAllele\tAltAllele\n')
             f.write('\n'.join(lines) + '\n')
             f.close()
 
