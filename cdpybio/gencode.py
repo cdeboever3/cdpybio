@@ -60,6 +60,79 @@ def make_gffutils_db(gtf, db):
                                 infer_gene_extent=False)
     return out_db 
 
+def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
+    """
+    Make a bed file with promoters for transcripts or genes from the Gencode GTF
+    file.
+
+    Parameters
+    ----------
+    gtf : str
+        Filename of the Gencode gtf file.
+
+    up : int
+        Number of bases to add upstream of the transcription start site.
+
+    down : int
+        Number of bases to add downstream of the transcription start site.
+
+    feature : str
+        Either transcript or gene. If transcript, promoters, for each transcript
+        will be included. If gene, a promoter for each gene entry in the GTF
+        will be included.
+
+    out : str
+        If provided, the bed file will be written to a file with this name.
+
+    Returns
+    -------
+    bed : pybedtools.BedTool
+        A sorted pybedtools BedTool object. 
+
+    """
+    import HTSeq
+    import itertools as it
+
+    plus_feats = []
+    minus_feats = []
+    if feature == 'transcript':
+        feat_id = 'transcript_id'
+    elif feature == 'gene':
+        feat_id = 'gene_id'
+
+    gtf = it.islice(HTSeq.GFF_Reader(gtf), None)
+    line = gtf.next()
+    while line != '':
+        if line.type == feature:
+            if line.iv.strand == '+':
+                plus_feats.append(
+                    ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
+                                str(line.iv.end),
+                                '{}_promoter'.format(line.attr[feat_id]),
+                                line.iv.strand])))
+            elif line.iv.strand == '-':
+                minus_feats.append(
+                    ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
+                                str(line.iv.end),
+                                '{}_promoter'.format(line.attr[feat_id]),
+                                line.iv.strand])))
+                    try:
+            line = gtf.next()
+        except StopIteration:
+            line = ''
+
+    plus = pbt.BedTool('\n'.join(plus_feats) + '\n', from_string=True)
+    minus = pbt.BedTool('\n'.join(minus_feats) + '\n', from_string=True)
+    plus = plus.slop(l=up, r=down, g=pbt.chromsizes('hg19'))
+    minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
+
+    bt  = plus.cat(minus, postmerge=False)
+    # We'll sort so bedtools operations can be done faster.
+    bt = bt.sort()
+    if out:
+        bt.saveas(out)
+    return bt
+
 def make_feature_bed(gtf, feature, out=None):
     """
     Make a bed file with the start and stop coordinates for all of a particular
@@ -111,7 +184,6 @@ def make_feature_bed(gtf, feature, out=None):
     if out:
         bt.saveas(out)
     return bt
-
 
 def make_gene_bed(fn, out=None):
     """
