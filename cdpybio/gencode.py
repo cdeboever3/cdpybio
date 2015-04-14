@@ -116,7 +116,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
                                 str(line.iv.end),
                                 '{}_promoter'.format(line.attr[feat_id]),
                                 line.iv.strand])))
-                    try:
+        try:
             line = gtf.next()
         except StopIteration:
             line = ''
