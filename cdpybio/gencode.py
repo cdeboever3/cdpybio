@@ -107,12 +107,12 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
             if line.iv.strand == '+':
                 plus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
-                                str(line.iv.end),
+                                str(line.iv.start),
                                 '{}_promoter'.format(line.attr[feat_id]),
                                 line.iv.strand])))
             elif line.iv.strand == '-':
                 minus_feats.append(
-                    ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
+                    ('\t'.join([line.iv.chrom, str(line.iv.end - 1),
                                 str(line.iv.end),
                                 '{}_promoter'.format(line.attr[feat_id]),
                                 line.iv.strand])))
