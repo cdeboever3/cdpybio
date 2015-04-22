@@ -103,6 +103,9 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     import HTSeq
     import itertools as it
 
+    if merge_by_gene:
+        use_gene_id = True
+
     plus_feats = []
     minus_feats = []
     if feature == 'gene' or use_gene_id:
@@ -133,8 +136,66 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
 
     plus = pbt.BedTool('\n'.join(plus_feats) + '\n', from_string=True)
     minus = pbt.BedTool('\n'.join(minus_feats) + '\n', from_string=True)
+
     plus = plus.slop(l=up, r=down, g=pbt.chromsizes('hg19'))
     minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
+
+    if merge_by_gene:
+        new_plus_lines = []
+        r = plus[0]
+        gene = r.name.split('_')[0]
+        chrom = r.chrom
+        start = r.start
+        end = r.end
+        strand = r.strand
+        for r in plus:
+            if gene != r.name.split('_')[0]:
+                new_plus_lines.append('\t'.join([chrom, str(start), str(end),
+                                                 gene, strand)])
+                gene = r.name.split('_')[0]
+                chrom = r.chrom
+                start = r.start
+                end = r.end
+                strand = r.strand
+            else:
+                if r.start <= start and r.end >= end:
+                    start = r.start
+                    end = r.end
+                elif r.start <= start and r.end >= start:
+                    start = r.start
+                elif r.start <= end and r.end >= end:
+                    end = r.end
+        new_plus_lines.append('\t'.join([chrom, str(start), str(end),
+                                         gene, strand)])
+        new_minus_lines = []
+        r = minus[0]
+        gene = r.name.split('_')[0]
+        chrom = r.chrom
+        start = r.start
+        end = r.end
+        strand = r.strand
+        for r in minus:
+            if gene != r.name.split('_')[0]:
+                new_minus_lines.append('\t'.join([chrom, str(start), str(end),
+                                                 gene, strand)])
+                gene = r.name.split('_')[0]
+                chrom = r.chrom
+                start = r.start
+                end = r.end
+                strand = r.strand
+            else:
+                if r.start <= start and r.end >= end:
+                    start = r.start
+                    end = r.end
+                elif r.start <= start and r.end >= start:
+                    start = r.start
+                elif r.start <= end and r.end >= end:
+                    end = r.end
+        new_minus_lines.append('\t'.join([chrom, str(start), str(end),
+                                         gene, strand)])
+
+        plus = pbt.BedTool('\n'.join(new_plus_lines) + '\n', from_string=True)
+        minus = pbt.BedTool('\n'.join(new_minus_lines) + '\n', from_string=True)
 
     bt  = plus.cat(minus, postmerge=False)
     # We'll sort so bedtools operations can be done faster.
@@ -146,7 +207,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
 def make_feature_bed(gtf, feature, out=None):
     """
     Make a bed file with the start and stop coordinates for all of a particular
-    geature in Gencode. Valid features are the features present in the third
+    feature in Gencode. Valid features are the features present in the third
     column of the Gencode GTF file.
 
     Parameters
