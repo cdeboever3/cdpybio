@@ -60,7 +60,8 @@ def make_gffutils_db(gtf, db):
                                 infer_gene_extent=False)
     return out_db 
 
-def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
+def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
+                      use_gene_id=False, merge_by_gene=False, out=None):
     """
     Make a bed file with promoters for transcripts or genes from the Gencode GTF
     file.
@@ -81,6 +82,15 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
         will be included. If gene, a promoter for each gene entry in the GTF
         will be included.
 
+    use_gene_id : bool
+        If True and feature='transcript', the gene ID will be used to name each
+        promoter rather than the transcript ID.
+
+    merge_by_gene : bool
+        If True and feature='transcript', promoters from all of the transcripts
+        of the same gene will be merged and named using the gene ID. This is
+        useful for knowing what sequences are promoters for a given gene.
+
     out : str
         If provided, the bed file will be written to a file with this name.
 
@@ -95,10 +105,10 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
 
     plus_feats = []
     minus_feats = []
-    if feature == 'transcript':
-        feat_id = 'transcript_id'
-    elif feature == 'gene':
-        feat_id = 'gene_id'
+    if feature == 'gene' or use_gene_id:
+        name_id = 'gene_id'
+    elif feature == 'transcript':
+        name_id = 'transcript_id'
 
     gtf = it.islice(HTSeq.GFF_Reader(gtf), None)
     line = gtf.next()
@@ -107,14 +117,14 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript', out=None):
             if line.iv.strand == '+':
                 plus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
-                                str(line.iv.start),
-                                '{}_promoter'.format(line.attr[feat_id]),
+                                str(line.iv.start - 1),
+                                '{}_promoter'.format(line.attr[name_id]),
                                 line.iv.strand])))
             elif line.iv.strand == '-':
                 minus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.end - 1),
-                                str(line.iv.end),
-                                '{}_promoter'.format(line.attr[feat_id]),
+                                str(line.iv.end - 1),
+                                '{}_promoter'.format(line.attr[name_id]),
                                 line.iv.strand])))
         try:
             line = gtf.next()
