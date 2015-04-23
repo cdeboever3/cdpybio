@@ -141,61 +141,8 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
 
     if merge_by_gene:
-        new_plus_lines = []
-        r = plus[0]
-        gene = r.name.split('_')[0]
-        chrom = r.chrom
-        start = r.start
-        end = r.end
-        strand = r.strand
-        for r in plus:
-            if gene != r.name.split('_')[0]:
-                new_plus_lines.append('\t'.join([chrom, str(start), str(end),
-                                                 gene, strand]))
-                gene = r.name.split('_')[0]
-                chrom = r.chrom
-                start = r.start
-                end = r.end
-                strand = r.strand
-            else:
-                if r.start <= start and r.end >= end:
-                    start = r.start
-                    end = r.end
-                elif r.start <= start and r.end >= start:
-                    start = r.start
-                elif r.start <= end and r.end >= end:
-                    end = r.end
-        new_plus_lines.append('\t'.join([chrom, str(start), str(end),
-                                         gene, strand]))
-        new_minus_lines = []
-        r = minus[0]
-        gene = r.name.split('_')[0]
-        chrom = r.chrom
-        start = r.start
-        end = r.end
-        strand = r.strand
-        for r in minus:
-            if gene != r.name.split('_')[0]:
-                new_minus_lines.append('\t'.join([chrom, str(start), str(end),
-                                                 gene, strand]))
-                gene = r.name.split('_')[0]
-                chrom = r.chrom
-                start = r.start
-                end = r.end
-                strand = r.strand
-            else:
-                if r.start <= start and r.end >= end:
-                    start = r.start
-                    end = r.end
-                elif r.start <= start and r.end >= start:
-                    start = r.start
-                elif r.start <= end and r.end >= end:
-                    end = r.end
-        new_minus_lines.append('\t'.join([chrom, str(start), str(end),
-                                         gene, strand]))
-
-        plus = pbt.BedTool('\n'.join(new_plus_lines) + '\n', from_string=True)
-        minus = pbt.BedTool('\n'.join(new_minus_lines) + '\n', from_string=True)
+        plus = _merge_bed_by_name(plus)
+        minus = _merge_bed_by_name(minus)
 
     bt  = plus.cat(minus, postmerge=False)
     # We'll sort so bedtools operations can be done faster.
@@ -203,6 +150,42 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     if out:
         bt.saveas(out)
     return bt
+
+def _merge_interval_list(intervals):
+    intervals.sort()
+    chrom = intervals[0][0]
+    start = intervals[0][1]
+    end = intervals[0][2]
+    name = intervals[0][3]
+    strand = intervals[0][4]
+    final_intervals = []
+    for i in intervals:
+        if i[1] <= end and i[2] >= end:
+            end = i[2]
+        elif i[1] > start:
+            final_intervals.append([chrom, start, end, name, strand])
+            start = i[1]
+            end = i[2]
+    final_intervals.append([chrom, start, end, name, strand])
+    return final_intervals
+        
+def _merge_bed_by_name(bt):
+    """
+    Merge intervals in a bed file when the intervals have the same name.
+    Intervals with the same name must be adjacent in the bed file.
+
+    """
+    name_lines = dict()
+    for r in bt:
+        name = r.name
+        names_lines[name] = name_lines.get(name, []) + [[r.chrom, r.start, 
+                                                         r.end, r.name,
+                                                         r.strand]]
+    new_lines = []
+    for name in name_lines.keys():
+        new_lines += _merge_interval_list(name_lines[name])
+    new_lines = ['\t'.join(map(str, x)) for x in new_lines]
+    return pbt.BedTool('\n'.join(new_lines) + '\n', from_string=True)
 
 def make_feature_bed(gtf, feature, out=None):
     """
