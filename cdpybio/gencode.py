@@ -177,7 +177,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
         for r in minus:
             if gene != r.name.split('_')[0]:
                 new_minus_lines.append('\t'.join([chrom, str(start), str(end),
-                                                 gene, strand)])
+                                                 gene, strand]))
                 gene = r.name.split('_')[0]
                 chrom = r.chrom
                 start = r.start
@@ -192,7 +192,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
                 elif r.start <= end and r.end >= end:
                     end = r.end
         new_minus_lines.append('\t'.join([chrom, str(start), str(end),
-                                         gene, strand)])
+                                         gene, strand]))
 
         plus = pbt.BedTool('\n'.join(new_plus_lines) + '\n', from_string=True)
         minus = pbt.BedTool('\n'.join(new_minus_lines) + '\n', from_string=True)
