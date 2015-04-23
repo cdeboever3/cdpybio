@@ -108,7 +108,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
 
     plus_feats = []
     minus_feats = []
-    if feature == 'gene' or use_gene_id:
+    if feature == 'gene' or use_gene_id or merge_by_gene:
         name_id = 'gene_id'
     elif feature == 'transcript':
         name_id = 'transcript_id'
