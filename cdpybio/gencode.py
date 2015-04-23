@@ -178,7 +178,7 @@ def _merge_bed_by_name(bt):
     name_lines = dict()
     for r in bt:
         name = r.name
-        names_lines[name] = name_lines.get(name, []) + [[r.chrom, r.start, 
+        names_line[name] = name_lines.get(name, []) + [[r.chrom, r.start, 
                                                          r.end, r.name,
                                                          r.strand]]
     new_lines = []
