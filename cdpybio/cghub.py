@@ -468,7 +468,7 @@ class FLCVariantCallingEngine(ReadsFromIntervalsEngine):
 
     def __init__(self, tumor_normal_ids, bed, java, mutect, fasta, dbsnp,
                  cosmic, name=None, external_server='flc.ucsd.edu',
-                 variant_outdir='.', bam_outdir='.', tempdir=',', threads=10,
+                 variant_outdir='.', bam_outdir='.', tempdir='.', threads=10,
                  sleeptime=10, variant_engine_fnc=None):
         """
         Initialize engine for obtaining reads for given intervals/IDs
