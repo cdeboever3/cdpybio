@@ -247,6 +247,8 @@ class BamJunctionCounts:
                 chrom, start, end = parse_region(jxn)
             front = '{}:{}-{}'.format(chrom, int(start) - 2, int(start) - 1)
             front_bed = os.path.join(self.tempdir, 'front.bed')
+            back_bed = os.path.join(self.tempdir, 'back.bed')
+            intron_bed = os.path.join(self.tempdir, 'intron.bed')
             with open(front_bed, 'w') as f:
                 f.write('{}\t{}\t{}\n'.format(chrom, int(start) - 2, int(start)
                                               - 1))
