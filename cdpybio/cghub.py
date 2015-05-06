@@ -258,7 +258,7 @@ class BamJunctionCounts:
                 f.write('{}\t{}\t{}\n'.format(chrom, start, end))
 
             c = 'samtools view -b {} {} | '.format(
-                self.gtfuse_bam.bam, front, temp_bam)
+                self.gtfuse_bam.bam, front)
             c += 'bedtools intersect -split -abam stdin -b {} | '.format(
                 front_bed)
             c += 'bedtools intersect -split -abam stdin -b {} | '.format(
