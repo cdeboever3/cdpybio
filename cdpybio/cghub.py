@@ -257,15 +257,15 @@ class BamJunctionCounts:
             with open(intron_bed, 'w') as f:
                 f.write('{}\t{}\t{}\n'.format(chrom, start, end))
 
-            c = 'samtools view -b {} {} | '.format(
-                self.gtfuse_bam.bam, front)
+            c = 'samtools view {} -b {} {} | '.format(
+                self.samtools_view_options, self.gtfuse_bam.bam, front)
             c += 'bedtools intersect -split -abam stdin -b {} | '.format(
                 front_bed)
             c += 'bedtools intersect -split -abam stdin -b {} | '.format(
                 back_bed)
             c += 'bedtools intersect -split -v -abam stdin -b {} | '.format(
                 intron_bed)
-            c += 'wc -l'
+            c += 'samtools view - | wc -l'
 
             t = 0
             while t < tries:
