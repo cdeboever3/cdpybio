@@ -1,5 +1,7 @@
 import os
 
+from general import parse_region
+
 def bed_to_samtools_intervals(bed):
     """
     Convert bed file to intervals for samtools view
@@ -240,9 +242,9 @@ class BamJunctionCounts:
                                    '{}.err'.format(self.analysis_id)), 'w')
         for jxn in self.junctions:
             if jxn.count(':') == 2:
-                chrom, start, end, strand = cpb.general.parse_region(jxn)
+                chrom, start, end, strand = parse_region(jxn)
             else:
-                chrom, start, end = cpb.general.parse_region(jxn)
+                chrom, start, end = parse_region(jxn)
             front = '{}:{}-{}'.format(chrom, int(start) - 2, int(start) - 1)
             front_bed = os.path.join(self.tempdir, 'front.bed')
             with open(front_bed, 'w') as f:
