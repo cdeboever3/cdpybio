@@ -183,6 +183,106 @@ class GTFuseBam:
             elif os.path.isdir(f):
                 shutil.rmtree(f)
 
+class BamJunctionCounts:
+    def __init__(self, gtfuse_bam, junctions, samtools_view_options=''):
+        """
+        Count the number of reads spanning each splice junction for a given bam
+        file.
+        
+        Parameters
+        ----------
+        gtfuse_bam : GTFuseBam
+            GTFuseBam object. The bam doesn't have to be mounted.
+
+        junctions : list
+            List of junctions of the form 1:10-200 or chr1:10-200:+.
+
+        samtools_view_options : str
+            Options to pass to samtools view to filter reads. For instance, '-F
+            2014' will remove optical duplicates.
+        
+        """
+        self.gtfuse_bam = gtfuse_bam
+        self.junctions = junctions
+        self.samtools_view_options = samtools_view_options
+        # List of intervals that we didn't obtain reads for. Hopefully this is
+        # always empty.
+        self.bad_junctions = []
+        self.analysis_id = self.gtfuse_bam.analysis_id
+        self.tempdir = self.gtfuse_bam.tempdir
+        self.junction_counts()
+        
+    def reads_from_intervals(self, max_intervals=10, tries=10, sleeptime=3):
+        """
+        Get junction counts for given junctions.
+        
+        Parameters
+        ----------
+        max_intervals : int
+            Maximum number of intervals to obtain with one samtools view call.
+        tries : int
+            Number of times to try to get a group of regions from the bam file. 
+            Sometimes there is an error for some of the regions.
+        sleeptime : int
+            Number of seconds to wait between tries if the reads aren't obtaiend
+            on the first try.
+        
+        """
+        import copy
+        import pandas as pd
+        import shutil
+        import subprocess
+        import time
+        counts = dict()
+        if not self.gtfuse_bam.mounted:
+            self.gtfuse_bam.mount()
+        temp_bams = []
+        stderr = open(os.path.join(self.tempdir,
+                                   '{}.err'.format(self.analysis_id)), 'w')
+        for jxn in junctions:
+            if jxn.count(':') == 2:
+                chrom, start, end, strand = cpb.general.parse_region(jxn)
+            else:
+                chrom, start, end = cpb.general.parse_region(jxn)
+            front = '{}:{}-{}'.format(chrom, int(start) - 2, int(start) - 1)
+            front_bed = os.path.join(self.tempdir, 'front.bed')
+            with open(front_bed, 'w') as f:
+                f.write('{}\t{}\t{}\n'.format(chrom, int(start) - 2, int(start)
+                                              - 1))
+            with open(back_bed, 'w') as f:
+                f.write('{}\t{}\t{}\n'.format(chrom, end, int(end) + 1)
+            with open(intron_bed, 'w') as f:
+                f.write('{}\t{}\t{}\n'.format(chrom, start, end))
+
+            c = 'samtools view -b {} {} | '.format(
+                self.gtfuse_bam.bam, front, temp_bam)
+            c += 'bedtools intersect -split -abam stdin -b {} | '.format(
+                front_bed)
+            c += 'bedtools intersect -split -abam stdin -b {} | '.format(
+                back_bed)
+            c += 'bedtools intersect -split -v -abam stdin -b {} | '.format(
+                intron_bed)
+            c += 'wc -l'
+
+            t = 0
+            while t < tries:
+                try:
+                    count = subprocess.check_output(c, shell=True,
+                                                    stderr=stderr)
+                    counts[jxn] = int(count.strip())
+                    break
+                except subprocess.CalledProcessError:
+                    t += 1
+                    self.gtfuse_bam.unmount()
+                    time.sleep(sleeptime)
+                    self.gtfuse_bam.mount()
+            if t == tries:
+                self.bad_junctions.append(jxn)
+            for f in [front_bed, back_bed, intron_bed]:
+                os.remove(f)
+            
+        os.remove(stderr.name)
+
 class ReadsFromIntervalsBam:
     def __init__(self, gtfuse_bam, intervals, bam):
         """
