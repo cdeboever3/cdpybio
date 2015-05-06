@@ -250,7 +250,7 @@ class BamJunctionCounts:
                 f.write('{}\t{}\t{}\n'.format(chrom, int(start) - 2, int(start)
                                               - 1))
             with open(back_bed, 'w') as f:
-                f.write('{}\t{}\t{}\n'.format(chrom, end, int(end) + 1)
+                f.write('{}\t{}\t{}\n'.format(chrom, end, int(end) + 1))
             with open(intron_bed, 'w') as f:
                 f.write('{}\t{}\t{}\n'.format(chrom, start, end))
 
