@@ -212,19 +212,18 @@ class BamJunctionCounts:
         self.tempdir = self.gtfuse_bam.tempdir
         self.junction_counts()
         
-    def reads_from_intervals(self, max_intervals=10, tries=10, sleeptime=3):
+    def junction_counts(self, tries=10, sleeptime=3):
         """
         Get junction counts for given junctions.
         
         Parameters
         ----------
-        max_intervals : int
-            Maximum number of intervals to obtain with one samtools view call.
         tries : int
-            Number of times to try to get a group of regions from the bam file. 
-            Sometimes there is an error for some of the regions.
+            Number of times to try to get the counts for a junction. Sometimes
+            there are errors.
+
         sleeptime : int
-            Number of seconds to wait between tries if the reads aren't obtaiend
+            Number of seconds to wait between tries if the count isn't obtained
             on the first try.
         
         """
@@ -280,8 +279,10 @@ class BamJunctionCounts:
                 self.bad_junctions.append(jxn)
             for f in [front_bed, back_bed, intron_bed]:
                 os.remove(f)
-            
+        
         os.remove(stderr.name)
+        self.counts = pd.Series(counts)
+
 
 class ReadsFromIntervalsBam:
     def __init__(self, gtfuse_bam, intervals, bam):
