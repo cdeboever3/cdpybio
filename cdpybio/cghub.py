@@ -186,10 +186,11 @@ class GTFuseBam:
                 shutil.rmtree(f)
 
 class BamJunctionCounts:
-    def __init__(self, gtfuse_bam, junctions, samtools_view_options=''):
+    def __init__(self, gtfuse_bam, junctions, samtools_view_options='-F 512'):
         """
         Count the number of reads spanning each splice junction for a given bam
-        file.
+        file. Only unique read names are counted, so if both reads from a read
+        pair span a splice junction, this will only contribute one count.
         
         Parameters
         ----------
@@ -200,8 +201,15 @@ class BamJunctionCounts:
             List of junctions of the form 1:10-200 or chr1:10-200:+.
 
         samtools_view_options : str
-            Options to pass to samtools view to filter reads. For instance, '-F
-            2014' will remove optical duplicates.
+            Options to pass to samtools view to filter reads.  By default, reads
+            with the 512 flag (read fails platform/vendor quality checks) are
+            filtered out. I think this matches how the TCGA counted splice
+            junction coverage in their original RNA-seq pipeline although I
+            can't find specific methods for how they did the counting. If you
+            pass '-F 2014' for instance, ONLY reads marked as optical duplicates
+            will be removed. You need to pass '-F 512 -F 1024' if you want both
+            optical duplicates and reads that fail quality checks to be removed,
+            etc.
         
         """
         self.gtfuse_bam = gtfuse_bam
@@ -265,7 +273,7 @@ class BamJunctionCounts:
                 back_bed)
             c += 'bedtools intersect -split -v -abam stdin -b {} | '.format(
                 intron_bed)
-            c += 'samtools view - | wc -l'
+            c += 'samtools view - | sort | uniq | wc -l'
 
             t = 0
             while t < tries:
