@@ -238,7 +238,7 @@ class BamJunctionCounts:
         temp_bams = []
         stderr = open(os.path.join(self.tempdir,
                                    '{}.err'.format(self.analysis_id)), 'w')
-        for jxn in junctions:
+        for jxn in self.junctions:
             if jxn.count(':') == 2:
                 chrom, start, end, strand = cpb.general.parse_region(jxn)
             else:
