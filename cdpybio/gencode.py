@@ -122,13 +122,13 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
                     ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
                                 str(line.iv.start - 1),
                                 '{}_promoter'.format(line.attr[name_id]),
-                                line.iv.strand])))
+                                '.', line.iv.strand])))
             elif line.iv.strand == '-':
                 minus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.end - 1),
                                 str(line.iv.end - 1),
                                 '{}_promoter'.format(line.attr[name_id]),
-                                line.iv.strand])))
+                                '.', line.iv.strand])))
         try:
             line = gtf.next()
         except StopIteration:
