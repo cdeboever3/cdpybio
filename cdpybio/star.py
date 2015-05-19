@@ -696,9 +696,9 @@ def _read_log(fn, define_sample_name=None):
 
     define_sample_name : function that takes string as input
         Function mapping filename to sample name. For instance, you may have the
-        sample name in the path and use a regex to extract it.  The sample names
-        will be used as the column names. If this is not provided, the columns
-        will be named as the input files.
+        sample name in the path and use a regex to extract it.  The sample name
+        will be used as the column name. If not provided, the column name will
+        be the filename.
 
     Returns
     -------
@@ -711,8 +711,10 @@ def _read_log(fn, define_sample_name=None):
     df = pd.read_table(fn, '|', header=None).dropna()
     df.index = df.ix[:,0].apply(lambda x: x.strip())
     df = pd.DataFrame(df.ix[:,1].apply(lambda x: x.strip()))
-    df.index.name = None
-    df.columns = [define_sample_name(fn)]
+    if define_sample_name:
+        df.columns = [define_sample_name(fn)]
+    else:
+        df.columns = [fn]
     return df
 
 def make_logs_df(fns, define_sample_name=None):
