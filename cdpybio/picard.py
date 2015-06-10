@@ -1,6 +1,34 @@
 import numpy as np
 import pandas as pd
 
+def parse_bam_index_stats(fn):
+    """
+    Parse the output from Picard's BamIndexStast and return as pandas Dataframe.
+
+    Parameters
+    ----------
+    filename : str of filename or file handle
+        Filename of the Picard output you want to parse.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Data from output file.
+
+    """
+    with open(fn) as f:
+        lines = [x.strip().split('\t') for x in f.readlines()]
+    no_counts = int(lines[-1][-1])
+    lines = lines[:-1]
+    chrom = [x[0] for x in lines]
+    length = [int(x[2]) for x in lines]
+    aligned = [int(x[4]) for x in lines]
+    unaligned = [int(x[6]) for x in lines]
+    df = pd.DataFrame([length, aligned, unaligned], columns=chrom, 
+                      index=['length', 'aligned', 'unaligned']).T
+    df = df.ix[sorted(df.index)]
+    return df
+
 def parse_alignment_summary_metrics(fn):
     """
     Parse the output from Picard's CollectAlignmentSummaryMetrics and return as
