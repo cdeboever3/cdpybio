@@ -17,7 +17,7 @@ def parse_bam_index_stats(fn):
 
     """
     with open(fn) as f:
-        lines = [x.strip().split('\t') for x in f.readlines()]
+        lines = [x.strip().split() for x in f.readlines()]
     no_counts = int(lines[-1][-1])
     lines = lines[:-1]
     chrom = [x[0] for x in lines]
