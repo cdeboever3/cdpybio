@@ -1,4 +1,5 @@
 import re
+import sys
 
 import pandas as pd
 import pybedtools as pbt
@@ -183,12 +184,13 @@ def nt_counts(bam, positions, stranded=False, vcf=False, bed=False):
     if not bed and not vcf:
         if type(positions) == pbt.bedtool.BedTool:
             df = positions.to_dataframe()
-        assert type(positions) is str, ('positions must be BedTool, bed file, '
-                                        'or vcf file')
-        if positions[-4:] == '.bed':
+        elif positions[-4:] == '.bed':
             bed = True
         elif positions[-4:] == '.vcf':
             vcf = True
+        else:
+            sys.stderr.write('Positions must be BedTool, bed file, or vcf '
+                             'file.\n')
 
     if bed:
         df = pbt.BedTool(positions).to_dataframe()
