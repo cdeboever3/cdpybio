@@ -6,6 +6,8 @@ etc. that I perform across projects. Documentation below is only an
 introduction, most functions are documented with docstrings.
 
 # Dependencies
+
+* Biopython
 * HTSeq
 * numpy
 * pandas

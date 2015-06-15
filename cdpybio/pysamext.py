@@ -1,6 +1,7 @@
 import re
 import sys
 
+from Bio.Seq import Seq
 import pandas as pd
 import pybedtools as pbt
 import pysam
@@ -140,8 +141,10 @@ def _pos_nt(pr, pos, stranded=False):
         if pr.alignment.is_read2 and not pr.alignment.is_reverse:
             strand = '+'
         if pr.alignment.is_read1 and not pr.alignment.is_reverse:
+            nt = str(Seq(nt).reverse_complement())
             strand = '-'
         if pr.alignment.is_read2 and pr.alignment.is_reverse:
+            nt = str(Seq(nt).reverse_complement())
             strand = '-'
         nt = '{}{}'.format(nt, strand)
     return nt
