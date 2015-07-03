@@ -200,7 +200,7 @@ def read_external_annotation(fn):
     ----------
     fn : filename str
         File with splice junctions from annotation. The file should have a
-        header and contained the following columns  'gene', 'chrom', 'start',
+        header and contain the following columns: 'gene', 'chrom', 'start',
         'end', 'strand', 'chrom:start', 'chrom:end', 'donor', 'acceptor', 
         'intron'.
 
