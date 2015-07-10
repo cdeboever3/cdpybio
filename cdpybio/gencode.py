@@ -353,14 +353,13 @@ def make_gene_info_df(fn):
                                                 entry.iv.strand,
                                                 entry.attr['gene_status'],
                                                 entry.source,
-                                                entry.attr['havana_gene'],
                                                 entry.attr['level']]
 
         except StopIteration:
             eof = True
 
     ind = ['gene_name', 'gene_type', 'chrom', 'start', 'end', 'strand',
-           'gene_status', 'source', 'havana_gene', 'level']
+           'gene_status', 'source', 'level']
     df = pd.DataFrame(convD, index=ind).T
     df.index.name = 'gene_id'
     return df
