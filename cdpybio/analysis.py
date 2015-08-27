@@ -42,11 +42,38 @@ class SVD:
         index = ['PC{}'.format(x) for x in range(1, len(s) + 1)]
         self.s_norm = pd.Series(s / s.sum(), index=index)
 
-    def plot_variance_explained(self):
+    def plot_variance_explained(self, xtick_start=1, xtick_spacing=1,
+                                num_pc=None):
+        """
+        Plot amount of variance explained by each principal component.
+
+        Parameters
+        ----------
+        num_pc : int
+            Number of principal components to plot. If None, plot all.
+
+        xtick_start : int
+            The first principal component to label on the x-axis.
+
+        xtick_spacing : int
+            The spacing between labels on the x-axis.
+
+        """
         import matplotlib.pyplot as plt
-        plt.bar(range(self.s_norm.shape[0]), self.s_norm.values)
+        if num_pc:
+            s_norm = self.s_norm[0:num_pc]
+        else:
+            s_norm = self.s_norm
+        plt.bar(range(s_norm.shape[0]), s_norm.values)
         plt.xlabel('PC')
         plt.ylabel('Proportion variance explained')
+        plt.xlim(0, s_norm.shape[0])
+        tick_locs = arange(xtick_start - 1, s_norm.shape[0],
+                              step=xtick_spacing)
+        # 0.8 is the width of the bars.
+        tick_locs += 0.4 
+        plt.xticks(tick_locs, 
+                   arange(xtick_start, s_norm.shape[0], xtick_spacing))
 
     def plot_pc_scatter(self, pc1, pc2, v=True, subset=None):
         """
@@ -84,10 +111,3 @@ class SVD:
         plt.title('{} vs. {}'.format(pc1, pc2))
         plt.xlabel(pc1)
         plt.ylabel(pc2)
-        plt.xlim(0, self.s_norm.shape[0])
-        tick_locs = arange(xtick_start - 1, self.s_norm.shape[0],
-                              step=xtick_spacing)
-        # 0.8 is the width of the bars.
-        tick_locs += 0.4 
-        plt.xticks(tick_locs, 
-                   arange(xtick_start, self.s_norm.shape[0], xtick_spacing))
