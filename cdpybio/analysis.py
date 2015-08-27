@@ -1,3 +1,5 @@
+import pandas as pd
+
 class SVD:
     def __init__(self, df, mean_center=True, scale_variance=False):
         """
