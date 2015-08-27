@@ -60,6 +60,7 @@ class SVD:
 
         """
         import matplotlib.pyplot as plt
+        from numpy import arange
         if num_pc:
             s_norm = self.s_norm[0:num_pc]
         else:
@@ -102,7 +103,6 @@ class SVD:
         axis object or something useful.
         """
         import matplotlib.pyplot as plt
-        from numpy import arange
         if v:
             df = self.v
         else:
