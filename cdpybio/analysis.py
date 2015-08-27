@@ -75,6 +75,7 @@ class SVD:
         axis object or something useful.
         """
         import matplotlib.pyplot as plt
+        from numpy import arange
         if v:
             df = self.v
         else:
@@ -83,3 +84,10 @@ class SVD:
         plt.title('{} vs. {}'.format(pc1, pc2))
         plt.xlabel(pc1)
         plt.ylabel(pc2)
+        plt.xlim(0, self.s_norm.shape[0])
+        tick_locs = arange(xtick_start - 1, self.s_norm.shape[0],
+                              step=xtick_spacing)
+        # 0.8 is the width of the bars.
+        tick_locs += 0.4 
+        plt.xticks(tick_locs, 
+                   arange(xtick_start, self.s_norm.shape[0], xtick_spacing))
