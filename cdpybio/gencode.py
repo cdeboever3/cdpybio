@@ -119,6 +119,11 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     elif feature == 'transcript':
         name_id = 'transcript_id'
 
+    if tss:
+        ftype = 'tss'
+    else:
+        ftype = 'promoter'
+
     gtf = it.islice(HTSeq.GFF_Reader(gtf), None)
     line = gtf.next()
     while line != '':
@@ -127,14 +132,14 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
                 plus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.start),
                                 str(line.iv.start),
-                                '{}_promoter'.format(line.attr[name_id]),
-                                '.', line.iv.strand])))
+                                '{}_{}'.format(line.attr[name_id], ftype), '.',
+                                line.iv.strand])))
             elif line.iv.strand == '-':
                 minus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.end),
                                 str(line.iv.end),
-                                '{}_promoter'.format(line.attr[name_id]),
-                                '.', line.iv.strand])))
+                                '{}_{}'.format(line.attr[name_id]), ftype, '.',
+                                line.iv.strand])))
         try:
             line = gtf.next()
         except StopIteration:
@@ -145,7 +150,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
 
     if tss:
         plus = plus.slop(l=0, r=1, g=pbt.chromsizes('hg19'))
-        minus = minus.slop(l=0, r=1, g=pbt.chromsizes('hg19'))
+        minus = minus.slop(l=1, r=0, g=pbt.chromsizes('hg19'))
     else:
         plus = plus.slop(l=up, r=down, g=pbt.chromsizes('hg19'))
         minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
