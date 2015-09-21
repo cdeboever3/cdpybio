@@ -138,7 +138,7 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
                 minus_feats.append(
                     ('\t'.join([line.iv.chrom, str(line.iv.end),
                                 str(line.iv.end),
-                                '{}_{}'.format(line.attr[name_id]), ftype, '.',
+                                '{}_{}'.format(line.attr[name_id], ftype), '.',
                                 line.iv.strand])))
         try:
             line = gtf.next()
