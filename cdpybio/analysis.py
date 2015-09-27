@@ -193,7 +193,7 @@ class SVD:
                          minor_axis=mat.columns[0:num_pc])
         for i in anova.major_axis:
             for j in anova.minor_axis:
-                t = [mat[j][meta[i] == x] for x in set(meta[i])]
+                t = [mat[j][covariates[i] == x] for x in set(covariates[i])]
                 f, p = f_oneway(*t)
                 anova.ix['fvalue', i, j] = f 
                 anova.ix['pvalue', i, j] = p 
