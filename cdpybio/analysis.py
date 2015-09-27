@@ -150,7 +150,7 @@ class SVD:
         elif (covariates.shape[0] == self.v.shape[0] and 
             len(set(covariates.index) & set(self.v.index)) == self.v.shape[0]):
             mat = self.v
-        corr = pd.Panel(np.nan, items=['rho', 'pvalue'],
+        corr = pd.Panel(items=['rho', 'pvalue'],
                         major_axis=covariates.columns,
                         minor_axis=mat.columns[0:num_pc])
         for i in corr.major_axis:
@@ -188,7 +188,7 @@ class SVD:
         elif (covariates.shape[0] == self.v.shape[0] and 
             len(set(covariates.index) & set(self.v.index)) == self.v.shape[0]):
             mat = self.v
-        anova = pd.Panel(np.nan, items=['fvalue', 'pvalue'],
+        anova = pd.Panel(items=['fvalue', 'pvalue'],
                          major_axis=covariates.columns,
                          minor_axis=mat.columns[0:num_pc])
         for i in anova.major_axis:
