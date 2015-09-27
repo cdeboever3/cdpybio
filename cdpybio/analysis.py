@@ -76,7 +76,7 @@ class SVD:
         plt.xticks(tick_locs, 
                    arange(xtick_start, s_norm.shape[0] + 1, xtick_spacing))
 
-    def plot_pc_scatter(self, pc1, pc2, v=True, subset=None):
+    def plot_pc_scatter(self, pc1, pc2, v=True, subset=None, ax=None):
         """
         Make a scatter plot of two principal components. 
 
@@ -98,16 +98,103 @@ class SVD:
         subset : list
             Make the scatter plot using only a subset of the rows of u or v.
 
+        ax : matplotlib.axes
+            Plot the scatter plot on this axis.
+
+        Returns
+        -------
+        ax : matplotlib.axes._subplots.AxesSubplot
+            Scatter plot axis.
+
         TODO: Add ability to have facets that control point size, color, and
-        shape. Add legends for these. Add ability to label points. Return
-        axis object or something useful.
+        shape. Add legends for these. Add ability to label points. 
         """
         import matplotlib.pyplot as plt
         if v:
             df = self.v
         else:
             df = self.u
-        plt.scatter(df[pc1], df[pc2])
-        plt.title('{} vs. {}'.format(pc1, pc2))
-        plt.xlabel(pc1)
-        plt.ylabel(pc2)
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+        ax.scatter(df[pc1], df[pc2])
+        ax.set_title('{} vs. {}'.format(pc1, pc2))
+        ax.set_xlabel(pc1)
+        ax.set_ylabel(pc2)
+        return ax
+    
+    def pc_correlation(self, covariates, num_pc=5):
+        """
+        Calculate the correlation between the first num_pc prinicipal components
+        and known covariates. The size and index of covariates determines
+        whether u or v is used.
+
+        Parameters
+        ----------
+        covariates : pandas.DataFrame
+            Dataframe of covariates whose index corresponds to the index of
+            either u or v. 
+        
+        num_pc : int
+            Number of principal components to correlate with.
+
+        Returns
+        -------
+        corr : pandas.Panel
+            Panel with correlation values and p-values.
+
+        """
+        from scipy.stats import spearmanr
+        if (covariates.shape[0] == self.u.shape[0] and 
+            len(set(covariates.index) & set(self.u.index)) == self.u.shape[0]):
+            mat = self.u
+        elif (covariates.shape[0] == self.v.shape[0] and 
+            len(set(covariates.index) & set(self.v.index)) == self.v.shape[0]):
+            mat = self.v
+        corr = pd.Panel(np.nan, items=['rho', 'pvalue'],
+                        major_axis=covariates.columns,
+                        minor_axis=mat.columns[0:num_pc])
+        for i in corr.major_axis:
+            for j in corr.minor_axis:
+                rho, p = spearmanr(covariates[i], mat[j])
+                corr.ix['rho', i, j] = rho
+                corr.ix['pvalue', i, j] = p
+        return corr
+    
+    def pc_anova(self, covariates, num_pc=5):
+        """ 
+        Calculate one-way ANOVA between the first num_pc prinicipal components
+        and known covariates. The size and index of covariates determines
+        whether u or v is used.
+    
+        Parameters
+        ----------
+        covariates : pandas.DataFrame
+            Dataframe of covariates whose index corresponds to the index of
+            either u or v. 
+    
+        num_pc : int
+            Number of principal components to correlate with.
+    
+        Returns
+        -------
+        anova : pandas.Panel
+            Panel with F-values and p-values.
+    
+        """
+        from scipy.stats import f_oneway
+        if (covariates.shape[0] == self.u.shape[0] and 
+            len(set(covariates.index) & set(self.u.index)) == self.u.shape[0]):
+            mat = self.u
+        elif (covariates.shape[0] == self.v.shape[0] and 
+            len(set(covariates.index) & set(self.v.index)) == self.v.shape[0]):
+            mat = self.v
+        anova = pd.Panel(np.nan, items=['fvalue', 'pvalue'],
+                         major_axis=covariates.columns,
+                         minor_axis=mat.columns[0:num_pc])
+        for i in anova.major_axis:
+            for j in anova.minor_axis:
+                t = [mat[j][meta[i] == x] for x in set(meta[i])]
+                f, p = f_oneway(*t)
+                anova.ix['fvalue', i, j] = f 
+                anova.ix['pvalue', i, j] = p 
+        return anova
