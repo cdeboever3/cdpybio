@@ -1,5 +1,51 @@
 import pandas as pd
 
+def goseq_gene_enrichment(genes, sig):
+    """
+    Perform goseq enrichment for an Ensembl gene set.
+
+    Parameters
+    ----------
+    genes : list
+        List of all genes as Ensembl IDs.
+        
+    sig : list
+        List of boolean values indicating whether each gene is significant or
+        not.
+
+    Returns
+    -------
+    go_results : pandas.DataFrame
+        Dataframe with goseq results as well as Benjamini-Hochberg correct
+        p-values.
+    """
+    import readline
+    import statsmodels.stats.multitest as smm
+    import rpy2.robjects as r
+    genes = list(genes)
+    sig = [bool(x) for x in sig]
+    r.r('library(goseq)')
+    r.globalenv['genes'] = list(genes)
+    r.globalenv['group'] = list(sig)
+    r.r('group = as.logical(group)')
+    r.r('names(group) = genes')
+    r.r('pwf = nullp(group, "hg19", "ensGene")')
+    r.r('wall = goseq(pwf, "hg19", "ensGene", method="Hypergeometric")')
+    r.r('t = as.data.frame(wall)')
+    t = r.globalenv['t']
+    go_results = pd.DataFrame(columns=list(t.colnames))
+    for i, c in enumerate(go_results.columns):
+        go_results[c] = list(t[i])
+    r, c, ask, abf = smm.multipletests(
+        go_results.over_represented_pvalue, alpha=0.05, method='fdr_i')
+    go_results['over_represented_pvalue_bh'] = c 
+    r, c, ask, abf = smm.multipletests(
+        go_results.under_represented_pvalue, alpha=0.05, method='fdr_i')
+    go_results['under_represented_pvalue_bh'] = c
+    go_results.index = go_results.category
+    go_results = go_results.drop('category', axis=1)
+    return go_results
+
 class SVD:
     def __init__(self, df, mean_center=True, scale_variance=False):
         """
