@@ -1,6 +1,6 @@
 import pandas as pd
 
-def goseq_gene_enrichment(genes, sig):
+def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
     """
     Perform goseq enrichment for an Ensembl gene set.
 
@@ -12,6 +12,12 @@ def goseq_gene_enrichment(genes, sig):
     sig : list
         List of boolean values indicating whether each gene is significant or
         not.
+
+    plot_fn : str
+        Path to save length bias plot to. If not provided, the plot is deleted.
+
+    length_correct : bool
+        Correct for length bias.
 
     Returns
     -------
@@ -30,7 +36,10 @@ def goseq_gene_enrichment(genes, sig):
     r.r('group = as.logical(group)')
     r.r('names(group) = genes')
     r.r('pwf = nullp(group, "hg19", "ensGene")')
-    r.r('wall = goseq(pwf, "hg19", "ensGene", method="Hypergeometric")')
+    if length_correct:
+        r.r('wall = goseq(pwf, "hg19", "ensGene")')
+    else:
+        r.r('wall = goseq(pwf, "hg19", "ensGene", method="Hypergeometric")')
     r.r('t = as.data.frame(wall)')
     t = r.globalenv['t']
     go_results = pd.DataFrame(columns=list(t.colnames))
@@ -44,6 +53,12 @@ def goseq_gene_enrichment(genes, sig):
     go_results['under_represented_pvalue_bh'] = c
     go_results.index = go_results.category
     go_results = go_results.drop('category', axis=1)
+    if plot_fn:
+        from os import rename
+        rename('Rplots.pdf', plot_fn)
+    else:
+        from os import remove
+        remove('Rplots.pdf')
     return go_results
 
 class SVD:
