@@ -61,7 +61,8 @@ def make_gffutils_db(gtf, db):
     return out_db 
 
 def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
-                      use_gene_id=False, merge_by_gene=False, out=None):
+                      use_gene_id=False, merge_by_gene=False, tss=False,
+                      out=None):
     """
     Make a bed file with promoters for transcripts or genes from the Gencode GTF
     file.
@@ -91,6 +92,11 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
         of the same gene will be merged and named using the gene ID. This is
         useful for knowing what sequences are promoters for a given gene.
 
+    tss : bool
+        Output the transcription start site for each transcript. The up and down
+        options will be ignored and the single base that is the TSS will be
+        written.
+
     out : str
         If provided, the bed file will be written to a file with this name.
 
@@ -113,22 +119,27 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     elif feature == 'transcript':
         name_id = 'transcript_id'
 
+    if tss:
+        ftype = 'tss'
+    else:
+        ftype = 'promoter'
+
     gtf = it.islice(HTSeq.GFF_Reader(gtf), None)
     line = gtf.next()
     while line != '':
         if line.type == feature:
             if line.iv.strand == '+':
                 plus_feats.append(
-                    ('\t'.join([line.iv.chrom, str(line.iv.start - 1),
-                                str(line.iv.start - 1),
-                                '{}_promoter'.format(line.attr[name_id]),
-                                '.', line.iv.strand])))
+                    ('\t'.join([line.iv.chrom, str(line.iv.start),
+                                str(line.iv.start),
+                                '{}_{}'.format(line.attr[name_id], ftype), '.',
+                                line.iv.strand])))
             elif line.iv.strand == '-':
                 minus_feats.append(
-                    ('\t'.join([line.iv.chrom, str(line.iv.end - 1),
-                                str(line.iv.end - 1),
-                                '{}_promoter'.format(line.attr[name_id]),
-                                '.', line.iv.strand])))
+                    ('\t'.join([line.iv.chrom, str(line.iv.end),
+                                str(line.iv.end),
+                                '{}_{}'.format(line.attr[name_id], ftype), '.',
+                                line.iv.strand])))
         try:
             line = gtf.next()
         except StopIteration:
@@ -137,8 +148,12 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
     plus = pbt.BedTool('\n'.join(plus_feats) + '\n', from_string=True)
     minus = pbt.BedTool('\n'.join(minus_feats) + '\n', from_string=True)
 
-    plus = plus.slop(l=up, r=down, g=pbt.chromsizes('hg19'))
-    minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
+    if tss:
+        plus = plus.slop(l=0, r=1, g=pbt.chromsizes('hg19'))
+        minus = minus.slop(l=1, r=0, g=pbt.chromsizes('hg19'))
+    else:
+        plus = plus.slop(l=up, r=down, g=pbt.chromsizes('hg19'))
+        minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
 
     if merge_by_gene:
         plus = _merge_bed_by_name(plus)
