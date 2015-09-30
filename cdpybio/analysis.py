@@ -103,32 +103,49 @@ class SVD:
         index = ['PC{}'.format(x) for x in range(1, len(s) + 1)]
         self.s_norm = pd.Series(s / s.sum(), index=index)
 
-    def plot_variance_explained(self, xtick_start=1, xtick_spacing=1,
-                                num_pc=None):
-        """
+    def plot_variance_explained(self, cumulative=False, xtick_start=1,
+                                xtick_spacing=1, num_pc=None):
+        """ 
         Plot amount of variance explained by each principal component.
-
+    
         Parameters
         ----------
         num_pc : int
             Number of principal components to plot. If None, plot all.
-
+    
+        cumulative : bool
+            If True, include cumulative variance.
+    
         xtick_start : int
             The first principal component to label on the x-axis.
-
+    
         xtick_spacing : int
             The spacing between labels on the x-axis.
-
+    
         """
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt 
         from numpy import arange
         if num_pc:
             s_norm = self.s_norm[0:num_pc]
         else:
             s_norm = self.s_norm
-        plt.bar(range(s_norm.shape[0]), s_norm.values)
+        if cumulative:
+            s_cumsum = s_norm.cumsum()
+            plt.bar(range(s_cumsum.shape[0]), s_cumsum.values,
+                    label='Cumulative', color=(0.17254901960784313,
+                                               0.6274509803921569,
+                                               0.17254901960784313))
+            plt.bar(range(s_norm.shape[0]), s_norm.values, label='Per PC',
+                    color=(0.12156862745098039, 0.4666666666666667,
+                           0.7058823529411765))
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.ylabel('Variance')
+        else:
+            plt.bar(range(s_norm.shape[0]), s_norm.values,
+                    color=(0.12156862745098039, 0.4666666666666667,
+                           0.7058823529411765))
+            plt.ylabel('Proportion variance explained')
         plt.xlabel('PC')
-        plt.ylabel('Proportion variance explained')
         plt.xlim(0, s_norm.shape[0])
         tick_locs = arange(xtick_start - 1, s_norm.shape[0],
                               step=xtick_spacing)
