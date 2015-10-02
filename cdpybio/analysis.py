@@ -1,5 +1,81 @@
 import pandas as pd
 
+def liftover_bed(bed, chain, liftOver=None, mapped=None, unmapped=None):
+    """
+    Lift over a bed file using a given chain file. 
+
+    Parameters
+    ----------
+    bed : str or pybedtools.BedTool
+        Coordinates to lift over.
+        
+    chain : str
+        Path to chain file to use for lift over.
+
+    liftOver : str
+        Path to liftOver executable if not in path.
+
+    mapped : str
+        Path for bed file with coordinates that are lifted over correctly.
+
+    unmapped : str
+        Path for text file to store coordinates that did not lift over
+        correctly. If this is not provided, these are discarded.
+
+    Returns
+    -------
+    new_coords : pandas.DataFrame
+        Pandas data frame with lift over results. Index is old coordinates in
+        the form chrom:start-end and columns are chrom, start, end and loc
+        (chrom:start-end) in new coordinate system.
+    """
+    import pybedtools as pbt
+    if mapped == None:
+        import tempfile
+        mapped = tempfile.NamedTemporaryFile()
+        mname = mapped.name
+    else:
+        mname = mapped
+    if unmapped == None:
+        import tempfile
+        unmapped = tempfile.NamedTemporaryFile()
+        uname = unmapped.name
+    else:
+        uname = unmapped
+    if liftOver == None:
+        liftOver = 'liftOver'
+    if type(bed) == str:
+        bt = pbt.BedTool(bed)
+    bt = bt.sort()
+    c = '{} {} {} {} {}'.format(liftOver, bt.fn, chain, mname, uname)
+    subprocess.check_call(c, shell=True)
+    with open(uname) as f:
+        missing = pbt.BedTool(''.join([x for x in f.readlines()[1::2]]),
+                              from_string=True)
+    bt = bt.subtract(missing)
+    bt_mapped = pbt.BedTool(mname)
+    old_loc = []
+    for r in bt:
+        old_loc.append('{}:{}-{}'.format(r.chrom, r.start, r.end))
+    new_loc = []
+    new_chrom = []
+    new_start = []
+    new_end = []
+    for r in bt_mapped:
+        new_loc.append('{}:{}-{}'.format(r.chrom, r.start, r.end))
+        new_chrom.append(r.chrom)
+        new_start.append(r.start)
+        new_end.append(r.end)
+    new_coords = pd.DataFrame({'loc':new_loc, 'chrom': new_chrom, 
+                               'start': new_start, 'end': new_end},
+                              index=old_loc)
+    for f in [mapped, unmapped]:
+        try:
+            f.close()
+        except AttributeError:
+            continue
+    return new_coords
+
 def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
     """
     Perform goseq enrichment for an Ensembl gene set.
@@ -30,7 +106,7 @@ def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
     import rpy2.robjects as r
     genes = list(genes)
     sig = [bool(x) for x in sig]
-    r.r('library(goseq)')
+    r.r('suppressMessages(library(goseq))')
     r.globalenv['genes'] = list(genes)
     r.globalenv['group'] = list(sig)
     r.r('group = as.logical(group)')
