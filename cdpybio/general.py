@@ -2,6 +2,31 @@ import re
 R_REGEX = re.compile('(.*):(.*)-(.*)')
 R_REGEX_STRAND = re.compile('(.*):(.*)-(.*):(.*)')
 
+def read_gzipped_text_url(url):
+    """Read a gzipped text file from a URL and return 
+    contents as a string."""
+    import urllib2
+    import zlib
+    from StringIO import StringIO
+
+    opener = urllib2.build_opener() 
+    request = urllib2.Request(url)
+    request.add_header('Accept-encoding', 'gzip')
+    respond = opener.open(request)
+    compressedData = respond.read()
+    respond.close()
+    opener.close()
+    compressedDataBuf = StringIO(compressedData)
+    d = zlib.decompressobj(16+zlib.MAX_WBITS)
+    buffer = compressedDataBuf.read(1024)
+    #saveFile = open('/tmp/test.txt', "wb")
+    s = []
+    while buffer:
+        s.append(d.decompress(buffer))
+        buffer = compressedDataBuf.read(1024)
+    s = ''.join(s)
+    return s
+
 def parse_region(region):
     """
     Parse region of type chr1:10-20 or chr1:10-20:+
