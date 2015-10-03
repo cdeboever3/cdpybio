@@ -142,10 +142,10 @@ def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
     go_results['under_represented_pvalue_bh'] = c
     go_results.index = go_results.category
     go_results = go_results.drop('category', axis=1)
-    if plot_fn:
+    if plot_fn and os.path.exists('Rplots.pdf'):
         from os import rename
         rename('Rplots.pdf', plot_fn)
-    else:
+    elif os.path.exists('Rplots.pdf'):
         from os import remove
         remove('Rplots.pdf')
     return go_results
