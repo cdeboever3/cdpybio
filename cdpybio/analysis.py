@@ -114,6 +114,7 @@ def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
         Dataframe with goseq results as well as Benjamini-Hochberg correct
         p-values.
     """
+    import os
     import readline
     import statsmodels.stats.multitest as smm
     import rpy2.robjects as r
