@@ -352,7 +352,7 @@ class SVD:
             if not color_name:
                 color_name = color.index.name
         else:
-            color = pd.Series(tableau20[0], index=df.index)
+            color = pd.Series([tableau20[0]] * df.shape[0], index=df.index)
             color_legend = False
         if s is not None:
             smap = pd.Series(dict(zip(
