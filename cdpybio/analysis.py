@@ -151,6 +151,40 @@ def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
         remove('Rplots.pdf')
     return go_results
 
+def make_color_legend_rects(colors, labels=None):
+    """ 
+    Make list of rectangles and labels for making legends.
+
+    Parameters
+    ----------
+    colors : pandas.Series or list
+        Pandas series whose values are colors and index is labels.
+        Alternatively, you can provide a list with colors and provide the labels
+        as a list.
+
+    labels : list
+        If colors is a list, this should be the list of corresponding labels.
+
+    Returns
+    -------
+    out : pd.Series
+        Pandas series whose values are matplotlib rectangles and whose index are
+        the legend labels for those rectangles.
+
+    """
+    from matplotlib.pyplot import Rectangle
+    if labels:
+        d = dict(zip(labels, colors))
+        se = pd.Series(d)
+    else:
+        se = colors
+    rects = []
+    for i in se.index:
+        r = Rectangle((0, 0), 0, 0, fc=se[i])
+        rects.append(r)
+    out = pd.Series(rects, index=se.index)
+    return out 
+
 class SVD:
     def __init__(self, df, mean_center=True, scale_variance=False):
         """
@@ -244,9 +278,12 @@ class SVD:
         plt.xticks(tick_locs, 
                    arange(xtick_start, s_norm.shape[0] + 1, xtick_spacing))
 
-    def plot_pc_scatter(self, pc1, pc2, v=True, subset=None, ax=None):
+    def plot_pc_scatter(self, pc1, pc2, v=True, subset=None, ax=None,
+                        color=None, s=None, marker=None, color_name=None,
+                        s_name=None, marker_name=None):
         """
-        Make a scatter plot of two principal components. 
+        Make a scatter plot of two principal components. You can create
+        differently colored, sized, or marked scatter points.
 
         Parameters
         ----------
@@ -269,26 +306,133 @@ class SVD:
         ax : matplotlib.axes
             Plot the scatter plot on this axis.
 
+        color : pandas.Series
+            Pandas series containing a categorical variable to color the scatter
+            points. Currently limited to 10 distinct values (colors).
+
+        s : pandas.Series
+            Pandas series containing a categorical variable to size the scatter
+            points. Currently limited to 7 distinct values (sizes).
+
+        marker : pandas.Series
+            Pandas series containing a categorical variable to choose the marker
+            type for the scatter points. Currently limited to 21 distinct values
+            (marker styles).
+
+        color_name : str
+            Name for the color legend if a categorical variable for color is
+            provided.
+
+        s_name : str
+            Name for the size legend if a categorical variable for size is
+            provided.
+
+        marker_name : str
+            Name for the marker legend if a categorical variable for marker type
+            is provided.
+
         Returns
         -------
         ax : matplotlib.axes._subplots.AxesSubplot
             Scatter plot axis.
 
-        TODO: Add ability to have facets that control point size, color, and
-        shape. Add legends for these. Add ability to label points. 
+        TODO: Add ability to label points. 
         """
         import matplotlib.pyplot as plt
         if v:
             df = self.v
         else:
             df = self.u
+        if color is not None:
+            colormap = pd.Series(dict(zip(set(color.values),
+                                          tableau20[0:len(set(color)) + 1:2])))
+            color = pd.Series([colormap[x] for x in color.values],
+                              index=color.index)
+            color_legend = True
+            if not color_name:
+                color_name = color.index.name
+        else:
+            color = pd.Series(tableau20[0], index=df.index)
+            color_legend = False
+        if s is not None:
+            smap = pd.Series(dict(zip(
+                set(s.values), range(30, 351)[0::50][0:len(set(s)) + 1])))
+            s = pd.Series([smap[x] for x in s.values],
+                          index=s.index)
+            s_legend = True
+            if not s_name:
+                s_name = s.index.name
+        else:
+            s = pd.Series(30, index=df.index)
+            s_legend = False
+        markers = ['o', '*', 's', 'v', '+', 'x', 'd', 
+                   'p', '2', '<', '|', '>', '_', 'h', 
+                   '1', '2', '3', '4', '8', '^', 'D']
+        if marker is not None:
+            markermap = pd.Series(dict(zip(set(marker.values), markers)))
+            marker = pd.Series([markermap[x] for x in marker.values],
+                               index=marker.index)
+            marker_legend = True
+            if not marker_name:
+                marker_name = marker.index.name
+        else:
+            marker = pd.Series('o', index=df.index)
+            marker_legend = False
         if ax is None:
             fig, ax = plt.subplots(1, 1)
-        ax.scatter(df[pc1], df[pc2])
+        for m in set(marker.values):
+            mse = marker[marker == m]
+            cse = color[mse.index]
+            sse = s[mse.index]
+            ax.scatter(df.ix[mse.index, pc1], df.ix[mse.index, pc2],
+                       s=sse.values, color=list(cse.values), marker=m, 
+                       alpha=0.8)
+        
         ax.set_title('{} vs. {}'.format(pc1, pc2))
         ax.set_xlabel(pc1)
         ax.set_ylabel(pc2)
-        return ax
+    
+        if color_legend:
+            legend_rects = make_color_legend_rects(colormap)
+            for r in legend_rects:
+                ax.add_patch(r)
+            lgd = ax.legend(legend_rects.values, labels=legend_rects.index, 
+                             title=color_name,
+                             loc='upper left',
+                             bbox_to_anchor=(1, 1))
+        
+        if s_legend:
+            if lgd:
+                lgd = ax.add_artist(lgd)
+            xa, xb = ax.get_xlim()
+            ya, yb = ax.get_ylim()
+            for i in smap.index:
+                ax.scatter([xb + 1], [yb + 1], marker='o', 
+                           s=smap[i], color='black', label=i)
+            lgd = ax.legend(title=s_name, loc='center left', 
+                            bbox_to_anchor=(1, 0.5))
+            ax.set_xlim(xa, xb)
+            ax.set_ylim(ya, yb)
+            
+        if marker_legend:
+            if lgd:
+                lgd = ax.add_artist(lgd)
+            xa, xb = ax.get_xlim()
+            ya, yb = ax.get_ylim()
+            for i in markermap.index:
+                t = ax.scatter([xb + 1], [yb + 1], marker=markermap[i], 
+                               s=smap.min(), color='black', label=i)
+                
+            handles, labels = ax.get_legend_handles_labels()
+            if s_legend:
+                handles = handles[len(smap):]
+                labels = labels[len(smap):]
+            lgd = ax.legend(handles, labels, title=marker_name, 
+                            loc='lower left', bbox_to_anchor=(1, 0))
+            ax.set_xlim(xa, xb)
+            ax.set_ylim(ya, yb)
+        fig.tight_layout()
+        return fig, ax
     
     def pc_correlation(self, covariates, num_pc=5):
         """
