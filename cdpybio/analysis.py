@@ -345,7 +345,7 @@ class SVD:
             df = self.u
         if color is not None:
             colormap = pd.Series(dict(zip(set(color.values),
-                                          tableau20[0:len(set(color)) + 1:2])))
+                                          tableau20[0:2 * len(set(color)):2])))
             color = pd.Series([colormap[x] for x in color.values],
                               index=color.index)
             color_legend = True
