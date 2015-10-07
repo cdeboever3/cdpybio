@@ -421,7 +421,7 @@ class SVD:
             ya, yb = ax.get_ylim()
             for i in markermap.index:
                 t = ax.scatter([xb + 1], [yb + 1], marker=markermap[i], 
-                               s=smap.min(), color='black', label=i)
+                               s=sse.min(), color='black', label=i)
                 
             handles, labels = ax.get_legend_handles_labels()
             if s_legend:
