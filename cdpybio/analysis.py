@@ -13,6 +13,208 @@ for i in range(len(tableau20)):
     r, g, b = tableau20[i]    
     tableau20[i] = (r / 255., g / 255., b / 255.)   
 
+def make_grasp_phenotype_file(fn, pheno, out):
+    """
+    Subset the GRASP database on a specific phenotype.
+    
+    Parameters
+    ----------
+    fn : str
+        Path to GRASP database file.
+
+    pheno : str
+        Phenotype to extract from database.
+
+    out : sttr
+        Path to output file for subset of GRASP database.
+    """
+    import subprocess
+    c = 'awk -F "\\t" \'NR == 1 || $12 == "{}" \' {} > {}'.format(
+        pheno.replace("'", '\\x27'), fn, out)
+    subprocess.check_call(c, shell=True)
+    
+def parse_grasp_gwas(fn):
+    """
+    Read GRASP database and filter for unique, significant (p < 1e-5)
+    SNPs.
+    
+    Parameters
+    ----------
+    fn : str
+        Path to (subset of) GRASP database.
+    
+    Returns
+    -------
+    df : pandas.DataFrame
+        Pandas dataframe with de-duplicated, significant SNPs. The index is of
+        the form chrom:pos where pos is the one-based position of the SNP. The
+        columns are chrom, start, end, rsid, and pvalue. rsid may be empty or
+        not actually an RSID. chrom, start, end make a zero-based bed file with
+        the SNP coordinates.
+    """
+    df = pd.read_table(out, low_memory=False)
+    df = df[df.Pvalue < 1e-5]
+    df = df.sort(columns=['chr(hg19)', 'pos(hg19)', 'Pvalue'])
+    df = df.drop_duplicates(subset=['chr(hg19)', 'pos(hg19)'])
+    df = df[df['chr(hg19)'].astype(str) != 'Y']
+    df['chrom'] = 'chr' + df['chr(hg19)'].astype(str)
+    df['end'] = df['pos(hg19)']
+    df['start'] = df.end - 1
+    df['rsid'] = df['SNPid(in paper)']
+    df['pvalue'] = df['Pvalue']
+    df = df[['chrom', 'start', 'end', 'rsid', 'pvalue']]
+    df.index = df['chrom'].astype(str) + ':' + df['end'].astype(str)
+    return df
+
+def parse_roadmap_gwas(fn):
+    """
+    Read Roadmap GWAS file and filter for unique, significant (p < 1e-5)
+    SNPs.
+    
+    Parameters
+    ----------
+    fn : str
+        Path to (subset of) GRASP database.
+    
+    Returns
+    -------
+    df : pandas.DataFrame
+        Pandas dataframe with de-duplicated, significant SNPs. The index is of
+        the form chrom:pos where pos is the one-based position of the SNP. The
+        columns are chrom, start, end, rsid, and pvalue. rsid may be empty or
+        not actually an RSID. chrom, start, end make a zero-based bed file with
+        the SNP coordinates.
+    """
+    df = pd.read_table(fn, low_memory=False, 
+                       names=['chrom', 'start', 'end', 'rsid', 'pvalue'])
+    df = df[df.pvalue < 1e-5]
+    df = df.sort(columns=['chrom', 'start', 'pvalue'])
+    df = df.drop_duplicates(subset=['chrom', 'start'])
+    df = df[df['chrom'] != 'chrY']
+    df.index = df['chrom'].astype(str) + ':' + df['end'].astype(str)
+    return df
+
+def ld_prune(df, ld_beds):
+    """
+    Prune set of GWAS SNPs based on LD and significance. A graph of all
+    SNPs is constructed with edges for LD >= 0.8 and the most significant
+    SNP per connected component is kept. 
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Pandas dataframe with de-duplicated, significant SNPs. The index is of
+        the form chrom:pos where pos is the one-based position of the SNP. The
+        columns are chrom, start, end, rsid, and pvalue. rsid may be empty or
+        not actually an RSID. chrom, start, end make a zero-based bed file with
+        the SNP coordinates.
+
+    ld_beds : dict
+        Dict whose keys are chromosomes and whose values are filenames of
+        tabixed LD bed files.
+
+    Returns
+    -------
+    out : pandas.DataFrame
+        Pandas dataframe in the same format as the input dataframe but with only
+        indepdent SNPs.
+    """
+    keep = set()
+    for chrom in ld_beds.keys():
+        tdf = df[df['chrom'].astype(str) == chrom]
+        f = tabix.open(ld_beds[chrom])
+        # Make a dict where each key is a SNP and the values are all of the
+        # other SNPs in LD with the key.
+        ld_d = {}
+        for j in tdf.index:
+            p = tdf.ix[j, 'end']
+            ld_d[p] = []
+            try:
+                r = f.query(chrom, p - 1, p)
+                while True:
+                    try:
+                        n = r.next()
+                        p1, p2, r2 = n[-1].split(':')
+                        if float(r2) >= 0.8:
+                            ld_d[p].append(int(p2))
+                    except StopIteration:
+                        break
+            except TabixError:
+                continue
+        # Make adjacency matrix for LD.
+        cols = sorted(list(set(
+            [item for sublist in ld_d.values() for item in sublist])))
+        t = pd.DataFrame(0, index=ld_d.keys(), columns=cols)
+        for k in ld_d.keys():
+            t.ix[k, ld_d[k]] = 1
+        t.index = ['{}:{}'.format(chrom, x) for x in t.index]
+        t.columns = ['{}:{}'.format(chrom, x) for x in t.columns]
+        # Keep all SNPs not in LD with any others. These will be in the index
+        # but not in the columns.
+        keep |= set(t.index) - set(t.columns)
+        # Keep SNPs that are in LD with at least one other SNP.
+        ind = list(set(t.columns) & set(t.index))
+        # Keep one most sig. SNP per connected subgraph.
+        t = t.ix[ind, ind]
+        g = nx.Graph(t.values)
+        c = nx.connected_components(g)
+        while True:
+            try:
+                sg = c.next()
+                s = tdf.ix[t.index[sg]]
+                keep.add(s[s.pvalue == s.pvalue.min()].index[0])
+            except StopIteration:
+                break
+    out = df.ix[keep]
+    return out
+
+def ld_expand(df, ld_beds):
+    """
+    Expand a set of SNPs into all SNPs with LD >= 0.8 with input SNPs and
+    return a BedTool of the expanded SNPs.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Pandas dataframe with SNPs. The index is of the form chrom:pos where pos
+        is the one-based position of the SNP. The columns are chrom, start, end,
+        rsid, and pvalue. rsid may be empty or not actually an RSID. chrom,
+        start, end make a zero-based bed file with the SNP coordinates.
+
+    ld_beds : dict
+        Dict whose keys are chromosomes and whose values are filenames of
+        tabixed LD bed files.
+
+    Returns
+    -------
+    bt : pybedtools.BedTool
+        BedTool with input SNPs and SNPs they are in LD with.
+        indepdent SNPs.
+    """
+    out_snps = []
+    for chrom in ld_beds.keys():
+        t = tabix.open(ld_beds[chrom])
+        tdf = df[df['chrom'].astype(str) == chrom]
+        for ind in tdf.index:
+            p = tdf.ix[ind, 'end']
+            out_snps.append('{}\t{}\t{}\t{}\n'.format(chrom, p - 1, p, ind))
+            try:
+                r = t.query('{}'.format(chrom), p - 1, p)
+                while True:
+                    try:
+                        n = r.next()
+                        p1, p2, r2 = n[-1].split(':')
+                        if float(r2) >= 0.8:
+                            out_snps.append('{0}\t{1}\t{2}\t{0}:{2}\n'.format(
+                                n[0], int(p2) - 1, int(p2)))
+                    except StopIteration:
+                        break
+            except:
+                tabix.TabixError
+    bt = pbt.BedTool(''.join(out_snps), from_string=True)
+    bt = bt.sort()
+    return bt
+
 def liftover_bed(bed, chain, liftOver=None, mapped=None, unmapped=None):
     """
     Lift over a bed file using a given chain file. 
