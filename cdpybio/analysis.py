@@ -119,6 +119,7 @@ def ld_prune(df, ld_beds):
         Pandas dataframe in the same format as the input dataframe but with only
         indepdent SNPs.
     """
+    import networkx as nx
     import tabix
     keep = set()
     for chrom in ld_beds.keys():
