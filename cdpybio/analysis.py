@@ -119,6 +119,7 @@ def ld_prune(df, ld_beds):
         Pandas dataframe in the same format as the input dataframe but with only
         indepdent SNPs.
     """
+    import tabix
     keep = set()
     for chrom in ld_beds.keys():
         tdf = df[df['chrom'].astype(str) == chrom]
@@ -191,6 +192,8 @@ def ld_expand(df, ld_beds):
         BedTool with input SNPs and SNPs they are in LD with.
         indepdent SNPs.
     """
+    import pybedtools as pbt
+    import tabix
     out_snps = []
     for chrom in ld_beds.keys():
         t = tabix.open(ld_beds[chrom])
@@ -209,8 +212,8 @@ def ld_expand(df, ld_beds):
                                 n[0], int(p2) - 1, int(p2)))
                     except StopIteration:
                         break
-            except:
-                tabix.TabixError
+            except tabix.TabixError:
+                continue
     bt = pbt.BedTool(''.join(out_snps), from_string=True)
     bt = bt.sort()
     return bt
