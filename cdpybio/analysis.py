@@ -52,7 +52,7 @@ def parse_grasp_gwas(fn):
         not actually an RSID. chrom, start, end make a zero-based bed file with
         the SNP coordinates.
     """
-    df = pd.read_table(out, low_memory=False)
+    df = pd.read_table(fn, low_memory=False)
     df = df[df.Pvalue < 1e-5]
     df = df.sort(columns=['chr(hg19)', 'pos(hg19)', 'Pvalue'])
     df = df.drop_duplicates(subset=['chr(hg19)', 'pos(hg19)'])
