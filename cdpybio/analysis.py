@@ -39,6 +39,7 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
     null_sets : pandas.Dataframe
         Pandas dataframe with null SNVs.
     """
+    import numpy as np
     import random
     random.seed(20151007)
     input_snvs = list(set(df.index) & set(snvs))
