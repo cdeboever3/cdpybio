@@ -13,6 +13,84 @@ for i in range(len(tableau20)):
     r, g, b = tableau20[i]    
     tableau20[i] = (r / 255., g / 255., b / 255.)   
 
+def generate_null_snvs(df, snvs, num_null_sets=5):
+    """
+    Generate a set of null SNVs based on an input list of SNVs and categorical
+    annotations. 
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Pandas dataframe where each column is a categorization of SNPs. 
+        The index should be SNPs of the form chrom:pos.
+        
+    snvs : list
+        List of input SNVs in the format chrom:pos. Entries that aren't in
+        the index of df will be dropped.
+        
+    num_null_sets : int
+        Number of sets of null SNVs to generate.
+        
+    Returns
+    -------
+    input_snvs : list
+        List of the input SNVs that are also in the index of df.
+    
+    null_sets : pandas.Dataframe
+        Pandas dataframe with null SNVs.
+    """
+    import random
+    random.seed(20151007)
+    input_snvs = list(set(df.index) & set(snvs))
+    sig = df.ix[input_snvs]
+    not_sig = df.ix[set(df.index) - set(snvs)]
+    sig['group'] = sig.apply(lambda x: '::'.join(x), axis=1)
+    not_sig['group'] = not_sig.apply(lambda x: '::'.join(x), axis=1)
+    null_sets = []
+    vc = sig.group.value_counts()
+    bins = {c:sorted(list(df.ld_bin.value_counts().index)) for c in df.columns}
+    for i in vc.index:
+        tdf = not_sig[not_sig.group == i]
+        count = vc[i]
+        for n in xrange(num_null_sets):
+            if tdf.shape[0] == 0:
+                groups = [i]
+                while tdf.shape[0] == 0:
+                    # If there are no potential null SNVs in this group, we'll
+                    # expand the group randomly.
+                    g = groups[-1]
+                    # Choose random bin.
+                    cols = list(not_sig.columns)
+                    cols.remove('group')
+                    b = random.choice(cols)
+                    # Get possibilities for that bin.
+                    t = bins[b]
+                    # Get last set of bin values and the value for the bin we
+                    # want to change.
+                    d = dict(zip(not_sig.columns, g.split('::')))
+                    cat = d[b]
+                    # Randomly walk away from bin value.
+                    ind = t.index(cat)
+                    if ind == 0:
+                        ind += 1
+                    elif ind == len(t) - 1:
+                        ind -= 1
+                    else:
+                        ind += random.choice([-1, 1])
+                    d[b] = t[ind]
+                    groups.append('::'.join(pd.Series(d)[not_sig.columns]))
+                    tdf = not_sig[not_sig.group.apply(lambda x: x in groups)]
+            if count <= tdf.shape[0]:
+                ind = random.sample(tdf.index, count)
+            else:
+                ind = list(np.random.choice(tdf.index, size=count, replace=True))
+            if i == vc.index[0]:
+                null_sets.append(ind)
+            else:
+                null_sets[n] += ind
+    null_sets = pd.DataFrame(null_sets).T
+    return input_snvs, null_sets
+
 def make_grasp_phenotype_file(fn, pheno, out):
     """
     Subset the GRASP database on a specific phenotype.
