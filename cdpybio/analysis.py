@@ -173,7 +173,7 @@ def parse_roadmap_gwas(fn):
     df.index = df['chrom'].astype(str) + ':' + df['end'].astype(str)
     return df
 
-def ld_prune(df, ld_beds):
+def ld_prune(df, ld_beds, snvs=None):
     """
     Prune set of GWAS SNPs based on LD and significance. A graph of all
     SNPs is constructed with edges for LD >= 0.8 and the most significant
@@ -192,6 +192,11 @@ def ld_prune(df, ld_beds):
         Dict whose keys are chromosomes and whose values are filenames of
         tabixed LD bed files.
 
+    snvs : list
+        List of SNVs to filter against. If a SNV is not in this list, it will
+        not be included. This is useful for filtering out SNVs that aren't in
+        the SNPsnap database for instance.
+
     Returns
     -------
     out : pandas.DataFrame
@@ -200,6 +205,8 @@ def ld_prune(df, ld_beds):
     """
     import networkx as nx
     import tabix
+    if snvs:
+        df = df.ix[set(df.index) & set(snvs)]
     keep = set()
     for chrom in ld_beds.keys():
         tdf = df[df['chrom'].astype(str) == chrom]
