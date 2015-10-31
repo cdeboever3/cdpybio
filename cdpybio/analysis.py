@@ -175,18 +175,17 @@ def parse_roadmap_gwas(fn):
 
 def ld_prune(df, ld_beds, snvs=None):
     """
-    Prune set of GWAS SNPs based on LD and significance. A graph of all
-    SNPs is constructed with edges for LD >= 0.8 and the most significant
-    SNP per connected component is kept. 
+    Prune set of GWAS based on LD and significance. A graph of all SNVs is
+    constructed with edges for LD >= 0.8 and the most significant SNV per
+    connected component is kept. 
     
     Parameters
     ----------
     df : pandas.DataFrame
-        Pandas dataframe with de-duplicated, significant SNPs. The index is of
-        the form chrom:pos where pos is the one-based position of the SNP. The
-        columns are chrom, start, end, rsid, and pvalue. rsid may be empty or
-        not actually an RSID. chrom, start, end make a zero-based bed file with
-        the SNP coordinates.
+        Pandas dataframe with unique SNVs. The index is of the form chrom:pos
+        where pos is the one-based position of the SNV. The columns must include
+        chrom, start, end, and pvalue. chrom, start, end make a zero-based bed
+        file with the SNV coordinates.
 
     ld_beds : dict
         Dict whose keys are chromosomes and whose values are filenames of
@@ -194,14 +193,14 @@ def ld_prune(df, ld_beds, snvs=None):
 
     snvs : list
         List of SNVs to filter against. If a SNV is not in this list, it will
-        not be included. This is useful for filtering out SNVs that aren't in
-        the SNPsnap database for instance.
+        not be included. If you are working with GWAS SNPs, this is useful for
+        filtering out SNVs that aren't in the SNVsnap database for instance.
 
     Returns
     -------
     out : pandas.DataFrame
         Pandas dataframe in the same format as the input dataframe but with only
-        indepdent SNPs.
+        indepdent SNVs.
     """
     import networkx as nx
     import tabix
@@ -258,26 +257,30 @@ def ld_prune(df, ld_beds, snvs=None):
 
 def ld_expand(df, ld_beds):
     """
-    Expand a set of SNPs into all SNPs with LD >= 0.8 with input SNPs and
-    return a BedTool of the expanded SNPs.
+    Expand a set of SNVs into all SNVs with LD >= 0.8 and return a BedTool of
+    the expanded SNPs.
     
     Parameters
     ----------
     df : pandas.DataFrame
-        Pandas dataframe with SNPs. The index is of the form chrom:pos where pos
-        is the one-based position of the SNP. The columns are chrom, start, end,
-        rsid, and pvalue. rsid may be empty or not actually an RSID. chrom,
-        start, end make a zero-based bed file with the SNP coordinates.
+        Pandas dataframe with SNVs. The index is of the form chrom:pos where pos
+        is the one-based position of the SNV. The columns are chrom, start, end.
+        chrom, start, end make a zero-based bed file with the SNV coordinates.
 
     ld_beds : dict
         Dict whose keys are chromosomes and whose values are filenames of
-        tabixed LD bed files.
+        tabixed LD bed files. The LD bed files should be formatted like this:
+            chr1    14463   14464   14464:51479:0.254183
+        where the the first three columns indicate the zero-based coordinates of
+        a SNV and the the fourth column has the one-based coordinate of that
+        SNV, the one-based coordinate of another SNV on the same chromosome, and
+        the LD between these SNVs (all separated by colons).
 
     Returns
     -------
     bt : pybedtools.BedTool
-        BedTool with input SNPs and SNPs they are in LD with.
-        indepdent SNPs.
+        BedTool with input SNVs and SNVs they are in LD with.
+        indepdent SNVs.
     """
     import pybedtools as pbt
     import tabix
