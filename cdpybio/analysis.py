@@ -33,11 +33,10 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
         
     Returns
     -------
-    input_snvs : list
-        List of the input SNVs that are also in the index of df.
-    
     null_sets : pandas.Dataframe
-        Pandas dataframe with null SNVs.
+        Pandas dataframe with input SNVs as first column and null SNVs as
+        following columns.
+
     """
     import numpy as np
     import random
@@ -50,7 +49,9 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
     null_sets = []
     vc = sig.group.value_counts()
     bins = {c:sorted(list(df.ld_bin.value_counts().index)) for c in df.columns}
+    ordered_inputs = []
     for i in vc.index:
+        ordered_inputs += list(sig[sig.group == i].index)
         tdf = not_sig[not_sig.group == i]
         count = vc[i]
         for n in xrange(num_null_sets):
@@ -90,7 +91,11 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
             else:
                 null_sets[n] += ind
     null_sets = pd.DataFrame(null_sets).T
-    return input_snvs, null_sets
+    null_sets.columns = ['null_{}'.format(x) for x in null_sets.columns]
+    cs = list(null_sets.columns)
+    null_sets['input'] = ordered_inputs
+    null_sets = null_sets[['input'] + cs]
+    return null_sets
 
 def make_grasp_phenotype_file(fn, pheno, out):
     """
