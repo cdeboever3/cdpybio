@@ -13,17 +13,18 @@ setup(
     version = '0.0.1',
     author = 'Christopher DeBoever',
     author_email = 'cdeboever3@gmail.com',
-    description = ('''A module that contains different useful things I like to
-                   use.'''),
+    description = ('A collection of useful methods for working with various '
+                   'bioinformatics data, software output files, etc.'),
     packages=find_packages(),
+    license = 'MIT',
+    keywords = 'bioinformatics ENCODE wrapper API',
+    url = 'https://github.com/cdeboever3/cdpybio',
+    long_description=read('README.md'),
+    classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Natural Language :: English',
+        'Topic :: Scientific/Engineering :: Bio-Informatics',
+   ]
 )
-#     license = 'BSD',
-#     keywords = 'example documentation tutorial',
-#     url = 'http://packages.python.org/an_example_pypi_project',
-#     packages=['an_example_pypi_project', 'tests'],
-#     long_description=read('README'),
-#     classifiers=[
-#         'Development Status :: 3 - Alpha',
-#         'Topic :: Utilities',
-#         'License :: OSI Approved :: BSD License',
-#    ],
