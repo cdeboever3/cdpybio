@@ -7,7 +7,7 @@ def read(fname):
 setup(
     name = 'cdpybio',
     packages=['cdpybio'],
-    version = '0.0.1',
+    version = '0.0.2',
     author = 'Christopher DeBoever',
     author_email = 'cdeboever3@gmail.com',
     description = ('A collection of useful methods for working with various '
@@ -15,7 +15,7 @@ setup(
     license = 'MIT',
     keywords = ['bioinformatics'],
     url = 'https://github.com/cdeboever3/cdpybio',
-    download_url = 'https://github.com/cdeboever3/cdpybio/tarball/0.0.1',
+    download_url = 'https://github.com/cdeboever3/cdpybio/tarball/0.0.2',
     long_description=read('README.md'),
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
