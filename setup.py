@@ -4,6 +4,12 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+try:
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst')
+except(IOError, ImportError):
+    long_description = open('README.md').read()
+
 setup(
     name = 'cdpybio',
     packages=['cdpybio'],
@@ -16,7 +22,7 @@ setup(
     keywords = ['bioinformatics'],
     url = 'https://github.com/cdeboever3/cdpybio',
     download_url = 'https://github.com/cdeboever3/cdpybio/tarball/0.0.2',
-    long_description=read('README.md'),
+    long_description=long_description,
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Science/Research',
