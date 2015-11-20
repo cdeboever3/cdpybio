@@ -509,6 +509,8 @@ def plot_color_legend(legend, horizontal=False, ax=None):
         Plot axis.
 
     """
+    import matplotlib.pyplot as plt
+    import numpy as np
     t = np.array([np.array([x for x in legend])])
     if ax is None:
         fig, ax = plt.subplots(1, 1)
