@@ -1,17 +1,21 @@
 import pandas as pd
 
-# tableau20 from # http://www.randalolson.com/2014/06/28/how-to-make-beautiful-data-visualizations-in-python-with-matplotlib/
-tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),
-             (44, 160, 44), (152, 223, 138), (214, 39, 40), (255, 152, 150), 
-             (148, 103, 189), (197, 176, 213), (140, 86, 75), (196, 156, 148),
-             (227, 119, 194), (247, 182, 210), (127, 127, 127), (199, 199, 199),
-             (188, 189, 34), (219, 219, 141), (23, 190, 207), (158, 218, 229)]
-  
-# Scale the RGB values to the [0, 1] range, which is the format matplotlib
-# accepts.    
-for i in range(len(tableau20)):    
-    r, g, b = tableau20[i]    
-    tableau20[i] = (r / 255., g / 255., b / 255.)   
+def _make_tableau20():
+    # tableau20 from # http://www.randalolson.com/2014/06/28/how-to-make-beautiful-data-visualizations-in-python-with-matplotlib/
+    tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),
+                 (44, 160, 44), (152, 223, 138), (214, 39, 40), (255, 152, 150), 
+                 (148, 103, 189), (197, 176, 213), (140, 86, 75), (196, 156, 148),
+                 (227, 119, 194), (247, 182, 210), (127, 127, 127), (199, 199, 199),
+                 (188, 189, 34), (219, 219, 141), (23, 190, 207), (158, 218, 229)]
+      
+    # Scale the RGB values to the [0, 1] range, which is the format matplotlib
+    # accepts.    
+    for i in range(len(tableau20)):    
+        r, g, b = tableau20[i]    
+        tableau20[i] = (r / 255., g / 255., b / 255.)
+    return tableau20
+
+tableau20 = _make_tableau20()
 
 def generate_null_snvs(df, snvs, num_null_sets=5):
     """
@@ -451,6 +455,76 @@ def goseq_gene_enrichment(genes, sig, plot_fn=None, length_correct=True):
         remove('Rplots.pdf')
     return go_results
 
+def categories_to_colors(cats, colormap=None):
+    """ 
+    Map categorical data to colors.
+
+    Parameters
+    ----------
+    cats : pandas.Series or list
+        Categorical data as a list or in a Series.
+
+    colormap : list
+        List of RGB triples. If not provided, the tableau20 colormap defined in
+        this module will be used.
+
+    Returns
+    -------
+    colors : pd.Series
+        Series whose values are the colors for each category. If cats was a
+        Series, then out will have the same index as cats.
+
+    legend : pd.Series
+        Series whose values are colors and whose index are the original
+        categories that correspond to those colors.
+
+    """
+    if colormap is None:
+        colormap = tableau20
+    if type(cats) != pd.Series:
+        cats = pd.Series(cats)
+    legend = pd.Series(dict(zip(set(cats), legend)))
+    colors = pd.Series([legend[x] for x in cats.values], index=cats.index)
+    return colors, legend
+
+def plot_color_legend(legend, horizontal=False, ax=None):
+    """
+    Plot a pandas Series with labels and colors.
+
+    Parameters
+    ----------
+    legend : pandas.Series
+        Pandas Series whose values are RGB triples and whose index contains
+        categorical labels.
+
+    horizontal : bool
+        If True, plot horizontally.
+
+    ax : matplotlib.axis
+        Axis to plot on.
+
+    Returns
+    -------
+    ax : matplotlib.axis
+        Plot axis.
+
+    """
+    t = np.array([np.array([x for x in legend])])
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    if horizontal:
+        ax.imshow(t, interpolation='none')
+        ax.set_yticks([])
+        ax.set_xticks(np.arange(0, legend.shape[0]))
+        t = ax.set_xticklabels(legend.index)
+    else:
+        t = t.reshape([legend.shape[0], 1, 3])
+        ax.imshow(t, interpolation='none')
+        ax.set_xticks([])
+        ax.set_yticks(np.arange(0, legend.shape[0]))
+        t = ax.set_yticklabels(legend.index)
+    return ax
+
 def make_color_legend_rects(colors, labels=None):
     """ 
     Make list of rectangles and labels for making legends.
@@ -469,7 +543,13 @@ def make_color_legend_rects(colors, labels=None):
     -------
     out : pd.Series
         Pandas series whose values are matplotlib rectangles and whose index are
-        the legend labels for those rectangles.
+        the legend labels for those rectangles. You can add each of these
+        rectangles to your axis using ax.add_patch(r) for r in out then create a
+        legend whose labels are out.values and whose labels are
+        legend_rects.index:
+            for r in legend_rects:
+                ax.add_patch(r)
+            lgd = ax.legend(legend_rects.values, labels=legend_rects.index)
 
     """
     from matplotlib.pyplot import Rectangle
