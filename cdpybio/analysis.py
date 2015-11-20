@@ -731,7 +731,7 @@ class SVD:
                             loc='lower left', bbox_to_anchor=(1, 0))
             ax.set_xlim(xa, xb)
             ax.set_ylim(ya, yb)
-        fig.tight_layout()
+        # fig.tight_layout()
         return fig, ax
     
     def pc_correlation(self, covariates, num_pc=5):
