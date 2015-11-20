@@ -483,7 +483,7 @@ def categories_to_colors(cats, colormap=None):
         colormap = tableau20
     if type(cats) != pd.Series:
         cats = pd.Series(cats)
-    legend = pd.Series(dict(zip(set(cats), legend)))
+    legend = pd.Series(dict(zip(set(cats), colormap)))
     colors = pd.Series([legend[x] for x in cats.values], index=cats.index)
     return colors, legend
 
