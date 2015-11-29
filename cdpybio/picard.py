@@ -70,11 +70,12 @@ def parse_mark_duplicate_metrics(fn):
     with open(fn) as f:
         lines = [x.strip().split('\t') for x in f.readlines()]
     metrics = pd.Series(lines[7], lines[6])
-    metrics = metrics.convert_objects(convert_numeric=True)
+    m = pd.to_numeric(metrics[metrics.index[1:]])
+    metrics[m.index] = m.values
 
     vals = np.array(lines[11:-1])
     hist = pd.Series(vals[:, 1], index=[int(float(x)) for x in vals[:, 0]])
-    hist = hist.convert_objects(convert_numeric=True)
+    hist = pd.to_numeric(hist)
     return metrics, hist
 
 def parse_insert_metrics(fn):
@@ -116,7 +117,7 @@ def parse_insert_metrics(fn):
     
     vals = np.array(lines[11:-1])
     hist = pd.Series(vals[:, 1], index=[int(float(x)) for x in vals[:, 0]])
-    hist = hist.convert_objects(convert_numeric=True)
+    hist = pd.to_numeric(hist)
     return metrics, hist
 
 def parse_rna_seq_metrics(fn):
@@ -159,5 +160,5 @@ def parse_rna_seq_metrics(fn):
 
     vals = np.array(lines[11:-1])
     hist = pd.Series(vals[:, 1], index=[int(float(x)) for x in vals[:, 0]])
-    hist = hist.convert_objects(convert_numeric=True)
+    hist = pd.to_numeric(hist)
     return metrics, hist

@@ -1,6 +1,6 @@
 import os
 import analysis, bedtools, cghub, express, gencode, general, mutect, picard
-import pysamext, star, variants
+import pysamext, sambamba, star, variants
 
 _root = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 
