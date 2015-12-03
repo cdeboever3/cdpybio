@@ -218,49 +218,50 @@ def ld_prune(df, ld_beds, snvs=None):
     keep = set()
     for chrom in ld_beds.keys():
         tdf = df[df['chrom'].astype(str) == chrom]
-        f = tabix.open(ld_beds[chrom])
-        # Make a dict where each key is a SNP and the values are all of the
-        # other SNPs in LD with the key.
-        ld_d = {}
-        for j in tdf.index:
-            p = tdf.ix[j, 'end']
-            ld_d[p] = []
-            try:
-                r = f.query(chrom, p - 1, p)
-                while True:
-                    try:
-                        n = r.next()
-                        p1, p2, r2 = n[-1].split(':')
-                        if float(r2) >= 0.8:
-                            ld_d[p].append(int(p2))
-                    except StopIteration:
-                        break
-            except TabixError:
-                continue
-        # Make adjacency matrix for LD.
-        cols = sorted(list(set(
-            [item for sublist in ld_d.values() for item in sublist])))
-        t = pd.DataFrame(0, index=ld_d.keys(), columns=cols)
-        for k in ld_d.keys():
-            t.ix[k, ld_d[k]] = 1
-        t.index = ['{}:{}'.format(chrom, x) for x in t.index]
-        t.columns = ['{}:{}'.format(chrom, x) for x in t.columns]
-        # Keep all SNPs not in LD with any others. These will be in the index
-        # but not in the columns.
-        keep |= set(t.index) - set(t.columns)
-        # Keep SNPs that are in LD with at least one other SNP.
-        ind = list(set(t.columns) & set(t.index))
-        # Keep one most sig. SNP per connected subgraph.
-        t = t.ix[ind, ind]
-        g = nx.Graph(t.values)
-        c = nx.connected_components(g)
-        while True:
-            try:
-                sg = c.next()
-                s = tdf.ix[t.index[sg]]
-                keep.add(s[s.pvalue == s.pvalue.min()].index[0])
-            except StopIteration:
-                break
+        if tdf.shape[0] > 0:
+            f = tabix.open(ld_beds[chrom])
+            # Make a dict where each key is a SNP and the values are all of the
+            # other SNPs in LD with the key.
+            ld_d = {}
+            for j in tdf.index:
+                p = tdf.ix[j, 'end']
+                ld_d[p] = []
+                try:
+                    r = f.query(chrom, p - 1, p)
+                    while True:
+                        try:
+                            n = r.next()
+                            p1, p2, r2 = n[-1].split(':')
+                            if float(r2) >= 0.8:
+                                ld_d[p].append(int(p2))
+                        except StopIteration:
+                            break
+                except TabixError:
+                    continue
+            # Make adjacency matrix for LD.
+            cols = sorted(list(set(
+                [item for sublist in ld_d.values() for item in sublist])))
+            t = pd.DataFrame(0, index=ld_d.keys(), columns=cols)
+            for k in ld_d.keys():
+                t.ix[k, ld_d[k]] = 1
+            t.index = ['{}:{}'.format(chrom, x) for x in t.index]
+            t.columns = ['{}:{}'.format(chrom, x) for x in t.columns]
+            # Keep all SNPs not in LD with any others. These will be in the index
+            # but not in the columns.
+            keep |= set(t.index) - set(t.columns)
+            # Keep SNPs that are in LD with at least one other SNP.
+            ind = list(set(t.columns) & set(t.index))
+            # Keep one most sig. SNP per connected subgraph.
+            t = t.ix[ind, ind]
+            g = nx.Graph(t.values)
+            c = nx.connected_components(g)
+            while True:
+                try:
+                    sg = c.next()
+                    s = tdf.ix[t.index[list(sg)]]
+                    keep.add(s[s.pvalue == s.pvalue.min()].index[0])
+                except StopIteration:
+                    break
     out = df.ix[keep]
     return out
 
