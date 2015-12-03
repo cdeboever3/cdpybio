@@ -1,15 +1,15 @@
 import numpy as np
 import pandas as pd
 
-def parse_mark_duplicate_metrics(fn):
+def parse_bammarkduplicates(fn):
     """
-    Parse the output from Picard's MarkDuplicates and return as pandas
+    Parse the output from biobambam2's bammarkduplicates and return as pandas
     Series.
 
     Parameters
     ----------
-    filename : str of filename or file handle
-        Filename of the Picard output you want to parse.
+    fn : str
+        Path to the output file to parse.
 
     Returns
     -------
@@ -23,7 +23,8 @@ def parse_mark_duplicate_metrics(fn):
     with open(fn) as f:
         lines = [x.strip().split('\t') for x in f.readlines()]
     metrics = pd.Series(lines[4], lines[3])
-    metrics = pd.to_numeric(metrics)
+    m = pd.to_numeric(metrics[metrics.index[1:]])
+    metrics[m.index] = m.values
 
     vals = np.array(lines[8:-1])
     hist = pd.Series(vals[:, 1], index=[int(float(x)) for x in vals[:, 0]])
