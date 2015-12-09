@@ -845,6 +845,10 @@ class SVD:
         elif (covariates.shape[0] == self.v.shape[0] and 
             len(set(covariates.index) & set(self.v.index)) == self.v.shape[0]):
             mat = self.v
+        else:
+            import sys
+            sys.stderr.write('Covariates differ in size from input data.\n')
+            sys.exit(1)
         corr = pd.Panel(items=['rho', 'pvalue'],
                         major_axis=covariates.columns,
                         minor_axis=mat.columns[0:num_pc])
