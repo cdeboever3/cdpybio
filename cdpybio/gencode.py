@@ -1,4 +1,3 @@
-import pdb
 import sys
 
 import pandas as pd
@@ -60,9 +59,17 @@ def make_gffutils_db(gtf, db):
                                 infer_gene_extent=False)
     return out_db 
 
-def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
-                      use_gene_id=False, merge_by_gene=False, tss=False,
-                      out=None):
+def make_promoter_bed(
+    gtf, 
+    up=2000, 
+    down=200, 
+    feature='transcript',
+    use_gene_id=False, 
+    merge_by_gene=False, 
+    tss=False,
+    out=None, 
+    unique_name=True,
+):
     """
     Make a bed file with promoters for transcripts or genes from the Gencode GTF
     file.
@@ -99,6 +106,10 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
 
     out : str
         If provided, the bed file will be written to a file with this name.
+
+    unique_name : bool
+        If True, ensure that the name column is unique. If the column isn't
+        unique, the coordinates are added to the column to make it unique.
 
     Returns
     -------
@@ -156,12 +167,21 @@ def make_promoter_bed(gtf, up=2000, down=200, feature='transcript',
         minus = minus.slop(l=down, r=up, g=pbt.chromsizes('hg19'))
 
     if merge_by_gene:
-        plus = _merge_bed_by_name(plus)
-        minus = _merge_bed_by_name(minus)
+        plus = merge_bed_by_name(plus)
+        minus = merge_bed_by_name(minus)
 
     bt  = plus.cat(minus, postmerge=False)
     # We'll sort so bedtools operations can be done faster.
     bt = bt.sort()
+
+    if unique_name:
+        df = bt.to_dataframe()
+        if len(set(df['name'])) != df.shape[0]:
+            df['name'] = (df.name + '_' + df.chrom.astype(str) + ':' +
+                          df.start.astype(str) + '-' + df.end.astype(str))
+            bt = pbt.BedTool('\n'.join(['\t'.join([str(x) for x in y]) for y in
+                                        df.values]) + '\n', from_string=True)
+
     if out:
         bt.saveas(out)
     return bt
@@ -184,7 +204,7 @@ def _merge_interval_list(intervals):
     final_intervals.append([chrom, start, end, name, strand])
     return final_intervals
         
-def _merge_bed_by_name(bt):
+def merge_bed_by_name(bt):
     """
     Merge intervals in a bed file when the intervals have the same name.
     Intervals with the same name must be adjacent in the bed file.
