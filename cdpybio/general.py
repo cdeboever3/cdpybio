@@ -2,6 +2,24 @@ import re
 R_REGEX = re.compile('(.*):(.*)-(.*)')
 R_REGEX_STRAND = re.compile('(.*):(.*)-(.*):(.*)')
 
+def transform_standard_normal(df):
+    """Transform a series or the rows of a dataframe to the values of a standard
+    normal based on rank."""
+    import pandas as pd
+    import scipy.stats as stats
+    if type(df) == pd.core.frame.DataFrame:
+        gc_ranks = df.rank(axis=1)
+        gc_ranks = gc_ranks / (gc_ranks.shape[1] + 1)
+        std_norm = stats.norm.ppf(gc_ranks)
+        std_norm = pd.DataFrame(std_norm, index=gc_ranks.index, 
+                                columns=gc_ranks.columns)
+    elif type(df) == pd.core.series.Series:
+        gc_ranks = df.rank()
+        gc_ranks = gc_ranks / (gc_ranks.shape[0] + 1)
+        std_norm = stats.norm.ppf(gc_ranks)
+        std_norm = pd.Series(std_norm, index=df.index)
+    return std_norm
+
 def read_gzipped_text_url(url):
     """Read a gzipped text file from a URL and return 
     contents as a string."""
