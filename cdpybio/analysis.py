@@ -353,6 +353,7 @@ def liftover_bed(
         the form chrom:start-end and columns are chrom, start, end and loc
         (chrom:start-end) in new coordinate system.
     """
+    import subprocess
     import pybedtools as pbt
     if mapped == None:
         import tempfile
@@ -368,6 +369,10 @@ def liftover_bed(
         uname = unmapped
     if type(bed) == str:
         bt = pbt.BedTool(bed)
+    elif type(bed) == pbt.bedtool.BedTool:
+        bt = bed
+    else:
+        sys.exit(1)
     bt = bt.sort()
     c = '{} {} {} {} {}'.format(liftOver_path, bt.fn, chain, mname, uname)
     subprocess.check_call(c, shell=True)
