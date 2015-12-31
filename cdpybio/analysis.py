@@ -52,7 +52,7 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
     not_sig['group'] = not_sig.apply(lambda x: '::'.join(x), axis=1)
     null_sets = []
     vc = sig.group.value_counts()
-    bins = {c:sorted(list(df.ld_bin.value_counts().index)) for c in df.columns}
+    bins = {c:sorted(list(df[c].value_counts().index)) for c in df.columns}
     ordered_inputs = []
     for i in vc.index:
         ordered_inputs += list(sig[sig.group == i].index)
@@ -84,7 +84,7 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
                     else:
                         ind += random.choice([-1, 1])
                     d[b] = t[ind]
-                    groups.append('::'.join(pd.Series(d)[not_sig.columns]))
+                    groups.append('::'.join(pd.Series(d)[not_sig.columns].astype(str)))
                     tdf = not_sig[not_sig.group.apply(lambda x: x in groups)]
             if count <= tdf.shape[0]:
                 ind = random.sample(tdf.index, count)

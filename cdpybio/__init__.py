@@ -8,6 +8,7 @@ import express
 import featureCounts
 import gencode
 import general
+import moodsext
 import mutect
 import picard
 import pysamext
