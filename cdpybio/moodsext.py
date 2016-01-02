@@ -1,4 +1,3 @@
-import MOODS
 import pandas as pd
 
 def _filter_variant_motif_res(
@@ -40,6 +39,7 @@ def _filter_variant_motif_res(
         overlap the variant removed. 
 
     """
+    import MOODS
     remove = []
     for r in motif_res:
         motif_start = r[0]
