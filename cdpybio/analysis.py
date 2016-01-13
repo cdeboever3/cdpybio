@@ -314,8 +314,8 @@ def ld_expand(df, ld_beds):
                         n = r.next()
                         p1, p2, r2 = n[-1].split(':')
                         if float(r2) >= 0.8:
-                            out_snps.append('{0}\t{1}\t{2}\t{0}:{2}\n'.format(
-                                n[0], int(p2) - 1, int(p2)))
+                            out_snps.append('{}\t{}\t{}\t{}\n'.format(
+                                n[0], int(p2) - 1, int(p2), ind))
                     except StopIteration:
                         break
             except tabix.TabixError:
