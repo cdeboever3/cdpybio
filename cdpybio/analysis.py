@@ -140,8 +140,10 @@ def parse_grasp_gwas(fn):
         the SNP coordinates.
     """
     df = pd.read_table(fn, low_memory=False)
+    df = df[df.Pvalue < 1e-5]
     df = df.sort(columns=['chr(hg19)', 'pos(hg19)', 'Pvalue'])
     df = df.drop_duplicates(subset=['chr(hg19)', 'pos(hg19)'])
+    df = df[df.Pvalue < 1e-5]
     df['chrom'] = 'chr' + df['chr(hg19)'].astype(str)
     df['end'] = df['pos(hg19)']
     df['start'] = df.end - 1
