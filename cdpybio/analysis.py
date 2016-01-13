@@ -123,8 +123,7 @@ def make_grasp_phenotype_file(fn, pheno, out):
     
 def parse_grasp_gwas(fn):
     """
-    Read GRASP database and filter for unique, significant (p < 1e-5)
-    SNPs.
+    Read GRASP database and filter for unique hits.
     
     Parameters
     ----------
@@ -141,10 +140,8 @@ def parse_grasp_gwas(fn):
         the SNP coordinates.
     """
     df = pd.read_table(fn, low_memory=False)
-    df = df[df.Pvalue < 1e-5]
     df = df.sort(columns=['chr(hg19)', 'pos(hg19)', 'Pvalue'])
     df = df.drop_duplicates(subset=['chr(hg19)', 'pos(hg19)'])
-    df = df[df['chr(hg19)'].astype(str) != 'Y']
     df['chrom'] = 'chr' + df['chr(hg19)'].astype(str)
     df['end'] = df['pos(hg19)']
     df['start'] = df.end - 1
@@ -198,18 +195,24 @@ def ld_prune(df, ld_beds, snvs=None):
 
     ld_beds : dict
         Dict whose keys are chromosomes and whose values are filenames of
-        tabixed LD bed files.
+        tabixed LD bed files. An LD bed file looks like "chr1    11007   11008
+        11008:11012:1" where the first three columns are the zero-based
+        half-open coordinate of the SNV and the fourth column has the one-based
+        coordinate followed of the SNV followed by the one-based coordinate of a
+        different SNV and the LD between them. In this example, the variants are
+        in perfect LD. The bed file should also contain the reciprocal line for
+        this LD relationship: "chr1    11011   11012   11012:11008:1".
 
     snvs : list
         List of SNVs to filter against. If a SNV is not in this list, it will
         not be included. If you are working with GWAS SNPs, this is useful for
-        filtering out SNVs that aren't in the SNVsnap database for instance.
+        filtering out SNVs that aren't in the SNPsnap database for instance.
 
     Returns
     -------
     out : pandas.DataFrame
         Pandas dataframe in the same format as the input dataframe but with only
-        indepdent SNVs.
+        independent SNVs.
     """
     import networkx as nx
     import tabix
@@ -249,7 +252,8 @@ def ld_prune(df, ld_beds, snvs=None):
             # Keep all SNPs not in LD with any others. These will be in the index
             # but not in the columns.
             keep |= set(t.index) - set(t.columns)
-            # Keep SNPs that are in LD with at least one other SNP.
+            # Filter so we only have SNPs that are in LD with at least one other
+            # SNP.
             ind = list(set(t.columns) & set(t.index))
             # Keep one most sig. SNP per connected subgraph.
             t = t.ix[ind, ind]
