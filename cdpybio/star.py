@@ -82,7 +82,7 @@ def read_sj_out_tab(filename):
     sj.strand = sj.strand.apply(lambda x: ['unk','+','-'][x])
     # See https://groups.google.com/d/msg/rna-star/B0Y4oH8ZSOY/NO4OJbbUU4cJ for
     # definition of strand in SJout files.
-    sj = sj.sort(columns=['chrom', 'start', 'end'])
+    sj = sj.sort_values(by=['chrom', 'start', 'end'])
     return sj
 
 def _make_sj_out_dict(fns, define_sample_name=None):
@@ -185,7 +185,7 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
     annotDF['end'] = annotDF['end'].astype(int)
     annotDF['annotated'] = annotDF['annotated'].astype(bool)
     # Sort annotation and panel
-    annotDF = annotDF.sort(columns=['chrom', 'start', 'end'])
+    annotDF = annotDF.sort_values(by=['chrom', 'start', 'end'])
     sj_outP = sj_outP.ix[:, annotDF.index, :]
 
     sj_outP = sj_outP.ix[:,:,COUNT_COLS].astype(int)
@@ -289,10 +289,14 @@ def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
 
     # Add column for start and end location (chromosome plus position for
     # uniqueness).
-    annotDF['chrom:start'] = annotDF.apply(
-        lambda x: '{}:{}'.format(x['chrom'],x['start']),axis=1)
-    annotDF['chrom:end'] = annotDF.apply(
-        lambda x: '{}:{}'.format(x['chrom'],x['end']),axis=1)
+    annotDF['chrom:start'] = (annotDF.chrom + ':' + 
+                              annotDF.start.astype(int).astype(str))
+    annotDF['chrom:end'] = (annotDF.chrom + ':' +
+                            annotDF.end.astype(int).astype(str))
+    # annotDF['chrom:start'] = annotDF.apply(
+    #     lambda x: '{}:{}'.format(x['chrom'],x['start']),axis=1)
+    # annotDF['chrom:end'] = annotDF.apply(
+    #     lambda x: '{}:{}'.format(x['chrom'],x['end']),axis=1)
 
     ext_startS = set(extDF['chrom:start'].values)
     ext_endS = set(extDF['chrom:end'].values)
@@ -523,7 +527,7 @@ def _make_splice_targets_dict(df, feature, strand):
 
     for k in g.groups.keys():
         d[k] = np.array(list(set(df.ix[g.groups[k], target])))
-        d[k].sort()
+        d[k].sort_values(inplace=True)
     return d
 
 def _find_novel_donor_acceptor_dist(annot, ext):
