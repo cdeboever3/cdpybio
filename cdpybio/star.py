@@ -75,7 +75,8 @@ def read_sj_out_tab(filename):
         if n == 6:
             return 'GT/AT'
 
-    sj = pd.read_table(filename, header=None, names=COLUMN_NAMES)
+    sj = pd.read_table(filename, header=None, names=COLUMN_NAMES,
+                       low_memory=False)
     sj.intron_motif = sj.intron_motif.map(int_to_intron_motif)
     sj.annotated = sj.annotated.map(bool)
     sj.strand.astype('object')
@@ -85,7 +86,7 @@ def read_sj_out_tab(filename):
     sj = sj.sort_values(by=['chrom', 'start', 'end'])
     return sj
 
-def _make_sj_out_dict(fns, define_sample_name=None):
+def _make_sj_out_dict(fns, jxns=None, define_sample_name=None):
     """Read multiple sj_outs, return dict with keys as sample names and values
     as sj_out dataframes.
 
@@ -93,6 +94,9 @@ def _make_sj_out_dict(fns, define_sample_name=None):
     ----------
     fns : list of strs of filenames or file handles
         List of filename of the SJ.out.tab files to read in
+
+    jxns : set
+        If provided, only keep junctions in this set.
 
     define_sample_name : function that takes string as input
         Function mapping filename to sample name. For instance, you may have the
@@ -123,6 +127,9 @@ def _make_sj_out_dict(fns, define_sample_name=None):
                  +  df.end.astype(str))
         assert len(index) == len(set(index))
         df.index = index
+        # If jxns is provided, only keep those.
+        if jxns:
+            df = df.ix[set(df.index) & jxns]
         sj_outD[sample] = df
 
     return sj_outD
@@ -429,6 +436,7 @@ def combine_sj_out(
     external_db, 
     total_jxn_cov_cutoff=20, 
     define_sample_name=None,
+    verbose=False,
 ):
     """Combine SJ.out.tab files from STAR by filtering based on coverage and
     comparing to an external annotation to discover novel junctions.
@@ -464,29 +472,62 @@ def combine_sj_out(
         Human readable statistics.
     
     """
+    if verbose:
+        import sys
+    # I'll start by figuring out which junctions we will keep.
+    counts = _total_jxn_counts(fns) 
+    jxns = set(counts[counts >= total_jxn_cov_cutoff].index)
+    if verbose:
+        sys.stderr.write('Counting done\n')
+
     stats = []
-    sj_outD = _make_sj_out_dict(fns, define_sample_name=define_sample_name)
+    sj_outD = _make_sj_out_dict(fns, jxns=jxns,
+                                define_sample_name=define_sample_name)
     stats.append('Number of junctions in SJ.out file per sample')
     for k in sj_outD.keys():
         stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
     stats.append('')
+    if verbose:
+        sys.stderr.write('Dict made\n')
 
     sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
     stats.append('SJ.out panel size\t{0}'.format(sj_outP.shape))
     stats.append('')
+    if verbose:
+        sys.stderr.write('Panel made\n')
 
     extDF, ext_stats = read_external_annotation(external_db)
     stats += ext_stats
     stats.append('')
+    if verbose:
+        sys.stderr.write('Annotation made\n')
 
     countsDF, annotDF, filter_stats = _filter_jxns_donor_acceptor(sj_outP, 
                                                                   annotDF, 
                                                                   extDF)
+    if verbose:
+        sys.stderr.write('Filter done\n')
 
     annotDF = _find_novel_donor_acceptor_dist(annotDF, extDF)
+    if verbose:
+        sys.stderr.write('Dist done\n')
 
     stats += filter_stats
     return countsDF, annotDF, stats
+
+def _total_jxn_counts(fns):
+    """Count the total unique coverage junction for junctions in a set of
+    SJ.out.tab files."""
+    df = pd.read_table(fns[0], header=None, names=COLUMN_NAMES)
+    df.index = (df.chrom + ':' + df.start.astype(int).astype(str) + '-' +
+                df.end.astype(int).astype(str))
+    counts = df.unique_junction_reads
+    for fn in fns[1:]:
+        df = pd.read_table(fn, header=None, names=COLUMN_NAMES)
+        df.index = (df.chrom + ':' + df.start.astype(int).astype(str) + '-' +
+                    df.end.astype(int).astype(str))
+        counts = counts.add(df.unique_junction_reads, fill_value=0)
+    return counts
 
 def _make_splice_targets_dict(df, feature, strand):
     """Make dict mapping each donor to the location of all acceptors it splices
