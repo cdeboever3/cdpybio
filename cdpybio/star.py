@@ -531,7 +531,7 @@ def _make_splice_targets_dict(df, feature, strand):
 
     for k in g.groups.keys():
         d[k] = np.array(list(set(df.ix[g.groups[k], target])))
-        d[k].sort()
+        d[k].sort_values(inplace=True)
     return d
 
 def _find_novel_donor_acceptor_dist(annot, ext):
