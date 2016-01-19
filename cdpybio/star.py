@@ -494,19 +494,19 @@ def combine_sj_out(
         stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
     stats.append('')
     if verbose:
-        sys.stderr.write('Dict made\n')
+        sys.stderr.write('Dict done\n')
 
     sj_outP, annotDF = _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff)
     stats.append('SJ.out panel size\t{0}'.format(sj_outP.shape))
     stats.append('')
     if verbose:
-        sys.stderr.write('Panel made\n')
+        sys.stderr.write('Panel done\n')
 
     extDF, ext_stats = read_external_annotation(external_db)
     stats += ext_stats
     stats.append('')
     if verbose:
-        sys.stderr.write('Annotation made\n')
+        sys.stderr.write('Annotation done\n')
 
     countsDF, annotDF, filter_stats = _filter_jxns_donor_acceptor(sj_outP, 
                                                                   annotDF, 
