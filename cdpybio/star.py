@@ -160,22 +160,22 @@ def _make_sj_out_panel(sj_outD, total_jxn_cov_cutoff=20):
         duplicated in the panel.
     
     """
-    num_jxns = dict()
-    # set of all junctions
-    jxnS = reduce(lambda x,y: set(x) | set(y),
-                  [ sj_outD[k].index for k in sj_outD.keys() ])
+    # num_jxns = dict()
+    # # set of all junctions
+    # jxnS = reduce(lambda x,y: set(x) | set(y),
+    #               [ sj_outD[k].index for k in sj_outD.keys() ])
 
-    jxn_keepS = set()
-    jxn_setsD = dict()
-    for k in sj_outD.keys():
-        jxn_setsD[k] = frozenset(sj_outD[k].index)
-    for j in jxnS:
-        if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
-                 if j in jxn_setsD[k] ]) >= total_jxn_cov_cutoff:
-            jxn_keepS.add(j)
+    # jxn_keepS = set()
+    # jxn_setsD = dict()
+    # for k in sj_outD.keys():
+    #     jxn_setsD[k] = frozenset(sj_outD[k].index)
+    # for j in jxnS:
+    #     if sum([ sj_outD[k].ix[j,'unique_junction_reads'] for k in sj_outD.keys()
+    #              if j in jxn_setsD[k] ]) >= total_jxn_cov_cutoff:
+    #         jxn_keepS.add(j)
 
-    for k in sj_outD.keys():
-        sj_outD[k] = sj_outD[k].ix[jxn_keepS]
+    # for k in sj_outD.keys():
+    #     sj_outD[k] = sj_outD[k].ix[jxn_keepS]
 
     sj_outP = pd.Panel(sj_outD)
     for col in ['unique_junction_reads', 'multimap_junction_reads',
@@ -300,21 +300,27 @@ def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
                               annotDF.start.astype(int).astype(str))
     annotDF['chrom:end'] = (annotDF.chrom + ':' +
                             annotDF.end.astype(int).astype(str))
-    # annotDF['chrom:start'] = annotDF.apply(
-    #     lambda x: '{}:{}'.format(x['chrom'],x['start']),axis=1)
-    # annotDF['chrom:end'] = annotDF.apply(
-    #     lambda x: '{}:{}'.format(x['chrom'],x['end']),axis=1)
 
     ext_startS = set(extDF['chrom:start'].values)
     ext_endS = set(extDF['chrom:end'].values)
 
     # Remove junctions that don't have a start or end shared with external
     # database.
-    junctions_to_removeSE = annotDF[annotDF.ext_annotated == False].apply(
-        lambda x: (x['chrom:start'] in ext_startS) + 
-        (x['chrom:end'] in ext_endS) == 0,axis=1)
-    if junctions_to_removeSE.shape[0] > 0:
-        annotDF = annotDF.drop(junctions_to_removeSE[junctions_to_removeSE].index)
+    tdf = pd.DataFrame(True, columns=['temp_start_in_ext'], index=ext_startS)
+    annotDF = annotDF.merge(tdf, left_on='chrom:start', right_index=True,
+                            how='left')
+    tdf = pd.DataFrame(True, columns=['temp_end_in_ext'], index=ext_endS)
+    annotDF = annotDF.merge(tdf, left_on='chrom:end', right_index=True,
+                            how='left')
+    junctions_to_remove = annotDF[(annotDF.ext_annotated == False) &
+                                  (annotDF.temp_start_in_ext.isnull()) &
+                                  (annotDF.temp_end_in_ext.isnull())].index
+
+    #junctions_to_removeSE = annotDF[annotDF.ext_annotated == False].apply(
+    #    lambda x: (x['chrom:start'] in ext_startS) + 
+    #    (x['chrom:end'] in ext_endS) == 0,axis=1)
+    if len(junctions_to_remove) > 0:
+        annotDF = annotDF.drop(junctions_to_remove)
 
     # Add column indicating which gene the junctions belong to for annotated
     # jxn's.
@@ -572,7 +578,7 @@ def _make_splice_targets_dict(df, feature, strand):
 
     for k in g.groups.keys():
         d[k] = np.array(list(set(df.ix[g.groups[k], target])))
-        d[k].sort_values(inplace=True)
+        d[k].sort()
     return d
 
 def _find_novel_donor_acceptor_dist(annot, ext):
