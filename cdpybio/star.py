@@ -113,7 +113,7 @@ def _make_sj_out_dict(fns, jxns=None, define_sample_name=None):
     if define_sample_name == None:
         define_sample_name = lambda x: x
     else:
-        assert len(set([ define_sample_name(x) for x in fns ])) == len(fns)
+        assert len(set([define_sample_name(x) for x in fns])) == len(fns)
     sj_outD = dict()
 
     for fn in fns:
@@ -368,19 +368,30 @@ def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
                                     ':' + annotDF.ix[neg_ind, 'strand'])
 
     # And whether the donor or acceptor is in the external database or not.
-    ext_donorS = frozenset(extDF.donor)
-    ext_acceptorS = frozenset(extDF.acceptor)
-    annotDF['novel_donor'] = False
-    annotDF['novel_acceptor'] = False
-    ind = annotDF[annotDF.ext_annotated == False].index
-    if len(ind) > 0:
-        novel_donor = []
-        novel_acceptor = []
-        for i in ind:
-            novel_donor.append(annotDF.ix[i, 'donor'] not in ext_donorS)
-            novel_acceptor.append(annotDF.ix[i, 'acceptor'] not in ext_acceptorS)
-        annotDF.ix[ind, 'novel_donor'] = novel_donor
-        annotDF.ix[ind, 'novel_acceptor'] = novel_acceptor
+    ext_donor = pd.DataFrame(False, index=list(set(extDF.donor)),
+                             columns=['novel_donor'])
+    ext_acceptor = pd.DataFrame(False, index=list(set(extDF.acceptor)),
+                                columns=['novel_acceptor'])
+    annotDF = annotDF.merge(ext_donor, left_on='donor', right_index=True,
+                            how='left')
+    annotDF.ix[annotDF.novel_donor.isnull(), 'novel_donor'] = True
+    annotDF = annotDF.merge(ext_acceptor, left_on='acceptor', right_index=True,
+                            how='left')
+    annotDF.ix[annotDF.novel_acceptor.isnull(), 'novel_acceptor'] = True
+
+    # ext_donorS = frozenset(extDF.donor)
+    # ext_acceptorS = frozenset(extDF.acceptor)
+    # annotDF['novel_donor'] = False
+    # annotDF['novel_acceptor'] = False
+    # ind = annotDF[annotDF.ext_annotated == False].index
+    # if len(ind) > 0:
+    #     novel_donor = []
+    #     novel_acceptor = []
+    #     for i in ind:
+    #         novel_donor.append(annotDF.ix[i, 'donor'] not in ext_donorS)
+    #         novel_acceptor.append(annotDF.ix[i, 'acceptor'] not in ext_acceptorS)
+    #     annotDF.ix[ind, 'novel_donor'] = novel_donor
+    #     annotDF.ix[ind, 'novel_acceptor'] = novel_acceptor
 
     # Sort by gene ID and start/end.
     annotDF = annotDF.sort_values(by=['gene_id', 'start', 'end'])
@@ -506,7 +517,7 @@ def combine_sj_out(
     stats += ext_stats
     stats.append('')
     if verbose:
-        sys.stderr.write('Annotation done\n')
+        sys.stderr.write('DB read done\n')
 
     countsDF, annotDF, filter_stats = _filter_jxns_donor_acceptor(sj_outP, 
                                                                   annotDF, 

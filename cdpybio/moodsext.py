@@ -53,10 +53,16 @@ def _filter_variant_motif_res(
     motif_res = list(set(motif_res) - set(remove))
     return motif_res
 
-def find_motif_disruptions(position, ref, alt, genome_fasta, matrices):
+def find_motif_disruptions(
+    position, 
+    ref, 
+    alt, 
+    genome_fasta, 
+    matrices,
+):
     """
     Determine whether there is a difference between the ref and alt
-    alleles for TF binding.
+    alleles for TF binding. Requires samtools in your path.
     
     Parameters
     ----------
@@ -88,14 +94,18 @@ def find_motif_disruptions(position, ref, alt, genome_fasta, matrices):
         motif on the given allele.
 
     """
-    import pybedtools as pbt
+    import os
+    import subprocess
+    import MOODS
+    # import pybedtools as pbt
     max_motif_length = max([x.shape[0] for x in matrices.values()])
     chrom, coords = position.split(':')
     start,end = [int(x) for x in coords.split('-')]
-    s = '{}\t{}\t{}\n'.format(chrom, start - max_motif_length + 1, end + max_motif_length - 1)
-    bt = pbt.BedTool(s, from_string=True)
-    seq = bt.sequence(fi=genome_fasta)
-    seq_lines = [x.strip() for x in open(seq.seqfn).readlines()]
+    s = '{}:{}-{}'.format(chrom, start - max_motif_length + 1, end +
+                          max_motif_length - 1)
+    c = 'samtools faidx {} {}'.format(genome_fasta, s)
+    seq_lines = subprocess.check_output(c, shell=True).strip().split()
+    os.remove(f.name)
     ref_seq = seq_lines[1]
     alt_seq = ref_seq[0:max_motif_length - 1] + alt + ref_seq[max_motif_length + len(ref) - 1:]
 
