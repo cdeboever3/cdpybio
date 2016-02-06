@@ -94,7 +94,6 @@ def find_motif_disruptions(
         motif on the given allele.
 
     """
-    import os
     import subprocess
     import MOODS
     # import pybedtools as pbt
@@ -105,7 +104,6 @@ def find_motif_disruptions(
                           max_motif_length - 1)
     c = 'samtools faidx {} {}'.format(genome_fasta, s)
     seq_lines = subprocess.check_output(c, shell=True).strip().split()
-    os.remove(f.name)
     ref_seq = seq_lines[1]
     alt_seq = ref_seq[0:max_motif_length - 1] + alt + ref_seq[max_motif_length + len(ref) - 1:]
 
