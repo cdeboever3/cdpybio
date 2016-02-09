@@ -4,6 +4,118 @@ import pybedtools as pbt
 
 from general import _sample_names
 
+class AnnotatedBed:
+    def __init__(
+        self,   
+        bed,
+        annot_beds,
+        bed_name_parser=None,
+        name_parsers=None,
+    ):  
+        """
+        Initialize AnnotatedBed object.
+            
+        Parameters
+        ----------
+        bed : str or pybedtools.Bedtool
+            Bed file to annotate.
+        
+        annot_beds : dict
+            Dict whose keys are names (like 'gene', 'promoter', etc.) and whose
+            values are bed files to annotate the input bed file with.
+        
+        """            
+        import pandas as pd
+        self._initialize_bt(bed)
+        self.bt_df = self.bt.to_dataframe()
+        self._num_cols = len(self.bt[0].fields)
+        self._has_name_col = self._num_cols > 3
+        if self._has_name_col:
+            if len(set(self.bt_df.name)) != self.bt_df.shape[0]:
+                self._has_name_col = False
+        if self._has_name_col:
+            self.bt_df.index = self.bt_df.name
+        else:
+            self.bt_df.index = (self.bt_df.chrom.astype + ':' +
+                                self.bt_df.start.astype(str) + '-' +
+                                self.bt_df.end.astype(str))
+        self._initialize_dfs()
+        self.feature_to = dict()
+        for k in annot_beds.keys():
+            self.annotate_bed(annot_beds[k], k)
+        # Remove bt object because pybedtools relies on the file on the disk and
+        # we don't know if the file will always be around.
+        self.bt = None
+
+    def _initialize_dfs(
+        self,
+    ):  
+        if self._has_name_col:
+            ind = list(self.bt_df['name'])
+        else:
+            ind = list(self.bt_df.chrom.astype(str) + ':' +
+                       self.bt_df.start.astype(str) + '-' +
+                       self.bt_df.end.astype(str))
+        self.df = pd.DataFrame(index=ind)
+        self.feature_to_df = pd.DataFrame(index=ind)
+
+    def _initialize_bt(
+        self,
+        bed,           
+    ):                 
+        import pybedtools as pbt
+        if type(bed) == str:
+            self.bt = pbt.BedTool(bed)
+        else:
+            self.bt = bed
+        self.bt = self.bt.sort()
+        
+    def bt_from_df(self):
+        """Make a BedTool object for the input bed file."""
+        import pybedtools as pbt
+        s = ('\n'.join(df.astype(str).apply(lambda x: '\t'.join(x), axis=1)) +
+             '\n')
+        self.bt = pbt.BedTool(s, from_string=True)
+        
+    def annotate_bed(
+        self,
+        bed,
+        name,
+    ):
+        import numpy as np
+        import pandas as pd
+        if type(bed) == str:
+            import pybedtools as pbt
+            bed = pbt.BedTool(bed)
+        bed = bed.sort()
+        has_name_col = len(bed[0].fields) > 3
+        res = self.bt.intersect(bed, sorted=True, wo=True)
+        df = res.to_dataframe(names=range(len(res[0].fields)))
+        if self._has_name_col:
+            ind = df[3].values
+        else:
+            ind = list(df[0].astype(str) + ':' +
+                       df[1].astype(str) + '-' +
+                       df[2].astype(str))
+        if has_name_col:
+            vals = df[self._num_cols + 3].values
+        else:
+            vals = list(df[self._num_cols + 0].astype(str) + ':' +
+                        df[self._num_cols + 1].astype(str) + '-' +
+                        df[self._num_cols + 2].astype(str))
+        self.df[name] = False
+        self.df.ix[set(ind), name] = True
+        se = pd.Series(vals, index=ind)
+        vc = pd.Series(se.index).value_counts()
+        self.feature_to_df[name] = np.nan
+        self.feature_to_df.ix[list(vc[vc == 1].index), name] = \
+                se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
+        m = list(set(vc[vc > 1].index))
+        v = []
+        for i in m:
+            v.append(set(se[i].values))
+        self.feature_to_df.ix[m, name] = v
+
 def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
                     **kwargs):
     """
