@@ -37,9 +37,39 @@ class AnnotatedBed:
             self.annotate_bed(self.bt, k, k)
         for k in completely_contains:
             self.annotate_bed(self.bt, k, k, complete=True)
-        # Remove bt object because pybedtools relies on the file on the disk and
-        # we don't know if the file will always be around.
-        self.bt = None
+        self._bt_path = None
+            
+    def load_saved_bts(self):
+        """If the AnnotatedBed object was saved to a pickle and reloaded,
+        this method remakes the BedTool object."""
+        if self._bt_path:
+            self.bt = pbt.BedTool(self._bt_path)
+            
+    def save(
+        self,
+        path,
+        name,
+    ):
+        """
+        Save AnnotatedBed object and bed file. The object is stored in a pickle
+        and the bed file is saved as a separate bed file. The object can be
+        reloaded by reading the pickle using cPickle.
+            
+        Parameters
+        ----------
+        path : str
+            Path to save files to. Path should include a basename for the files.
+            For instance, path='~/abc' will create files like ~/abc.pickle,
+            ~/abc.bed, etc.
+            
+        name : str
+            Descriptive name used for bed file trackline.
+        """
+        t = 'track type=bed name="{}"'.format(name)
+        self.bt.saveas(path + '.bed', trackline=t)
+        self._bt_path = path + '.bed'
+        import cPickle
+        cPickle.dump(self, open(path + '.pickle', 'w'))
         
     def _initialize_annot_beds(
         self, 
@@ -91,10 +121,25 @@ class AnnotatedBed:
         bt,
         name,
         col_name,
-        complete=None,
+        complete=False,
     ):
-        """name is the key for the bed file in self.annot_beds. col_name is used
-        to name the columns created in the dataframe."""
+        """
+        Annotate the input bed file using one of the annotation beds.
+
+        Parameters
+        ----------
+        name : str
+            The key for the annoation bed file in annot_beds. 
+        
+        col_name : str
+            Used to name the columns that will be made.
+
+        complete : bool
+            If True, this method will check whether the features in the
+            annotation bed are completely contained by the features in the input
+            bed.
+        
+        """
         import numpy as np
         import pandas as pd
         has_name_col = len(self.annot_beds[name][0].fields) > 3
@@ -121,8 +166,8 @@ class AnnotatedBed:
         se = pd.Series(vals, index=ind)
         vc = pd.Series(se.index).value_counts()
         self.feature_to_df[col_name] = np.nan
-        self.feature_to_df.ix[list(vc[vc == 1].index), col_name] \
-                = se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
+        self.feature_to_df.ix[list(vc[vc == 1].index), col_name] = \
+                se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
         m = list(set(vc[vc > 1].index))
         v = []
         for i in m:
@@ -166,13 +211,60 @@ class AnnotatedInteractions(AnnotatedBed):
             for k in completely_contains:
                 self.annotate_bed(bt, k, '{}{}'.format(k, suffixes[i]),
                                   complete=True)
-        # Remove BedTools objects because pybedtools relies on the file on the
-        # disk and we don't know if the file will always be around.
-        self.bt1 = None
-        self.bt2 = None
-        self.bt_loop = None
-        self.bt_loop_inner = None
+        self._bt1_path = None
+        self._bt2_path = None
+        self._bt_loop_path = None
+        self._bt_loop_inner_path = None
+
+    def load_saved_bts(self):
+        """If the AnnotatedInteractions object was saved to a pickle and
+        reloaded, this method remakes the BedTool objects."""
+        if self._bt1_path:
+            self.bt1 = pbt.BedTool(self._bt1_path)
+        if self._bt2_path:
+            self.bt2 = pbt.BedTool(self._bt2_path)
+        if self._bt_loop_path:
+            self.bt_loop = pbt.BedTool(self._bt_loop_path)
+        if self._bt_loop_inner_path:
+            self.bt_loop_inner = pbt.BedTool(self._bt_loop_inner_path)
         
+    def save(
+        self,
+        path,
+        name,
+    ):
+        """
+        Save AnnotatedInteractions object and bed files. The object is stored in
+        a pickle and the bed files are saved as separate bed files. The object
+        can be reloaded by reading the pickle using cPickle and the BedTool
+        objects can be recreated using .load_saved_bts().
+            
+        Parameters
+        ----------
+        path : str
+            Path to save files to. Path should include a basename for the files.
+            For instance, path='~/abc' will create files like ~/abc.pickle,
+            ~/abc_anchor1.bed, etc.
+            
+        name : str
+            Descriptive name used for bed file trackline.
+
+        """
+        t = 'track type=bed name="{}_anchor1"'.format(name)
+        self.bt1.saveas(path + '_anchor1.bed', trackline=t)
+        self._bt1_path = path + '_anchor1.bed'
+        t = 'track type=bed name="{}_anchor2"'.format(name)
+        self.bt2.saveas(path + '_anchor2.bed', trackline=t)
+        self._bt2_path = path + '_anchor2.bed'
+        t = 'track type=bed name="{}_loop"'.format(name)
+        self.bt_loop.saveas(path + '_loop.bed', trackline=t)
+        self._bt_loop_path = path + '_loop.bed'
+        t = 'track type=bed name="{}_loop_inner"'.format(name)
+        self.bt_loop_inner.saveas(path + '_loop_inner.bed', trackline=t)
+        self._bt_loop_inner_path = path + '_loop_inner.bed'
+        import cPickle
+        cPickle.dump(self, open(path + '.pickle', 'w'))   
+    
     def annotate_bed(
         self,
         bt,
@@ -180,8 +272,23 @@ class AnnotatedInteractions(AnnotatedBed):
         col_name,
         complete=None,
     ):
-        """name is the key for the bed file in self.annot_beds. col_name is used
-        to name the columns created in the dataframe."""
+        """
+        Annotate the input bed file using one of the annotation beds.
+
+        Parameters
+        ----------
+        name : str
+            The key for the annoation bed file in annot_beds. 
+        
+        col_name : str
+            Used to name the columns that will be made.
+
+        complete : bool
+            If True, this method will check whether the features in the
+            annotation bed are completely contained by the features in the input
+            bed.
+        
+        """
         import numpy as np
         import pandas as pd
         has_name_col = len(self.annot_beds[name][0].fields) > 3
@@ -204,8 +311,8 @@ class AnnotatedInteractions(AnnotatedBed):
             se = pd.Series(vals, index=ind)
             vc = pd.Series(se.index).value_counts()
             self.feature_to_df[col_name] = np.nan
-            self.feature_to_df.ix[list(vc[vc == 1].index), col_name] \
-                    = se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
+            self.feature_to_df.ix[list(vc[vc == 1].index), col_name] = \
+                    se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
             m = list(set(vc[vc > 1].index))
             v = []
             for i in m:
@@ -228,12 +335,12 @@ class AnnotatedInteractions(AnnotatedBed):
         self.df['loop'] = np.nan
         self.df.ix[ind, 'loop'] = (
             self.df.chrom1 + ':' + 
-            self.df[['start1', 'start2']].min(axis=1).astype(str) + '-' + 
-            self.df[['end1', 'end2']].max(axis=1).astype(str))
+            self.df[['start1', 'start2']].min(axis=1).astype(str) + 
+            '-' + self.df[['end1', 'end2']].max(axis=1).astype(str))
         self.df['loop_inner'] = np.nan
         self.df.ix[ind, 'loop_inner'] = (
             self.df.chrom1 + ':' + 
-            self.df[['end1', 'end2']].min(axis=1).astype(str) + '-' + 
+            self.df[['end1', 'end2']].min(axis=1).astype(str) + '-' +
             self.df[['start1', 'start2']].max(axis=1).astype(str))
         self.df['loop_length'] = (self.df[['end1', 'end2']].max(axis=1) - 
                                   self.df[['start1', 'start2']].min(axis=1))
@@ -243,23 +350,25 @@ class AnnotatedInteractions(AnnotatedBed):
         
     def bt_from_df(self):         
         import pybedtools as pbt
-        s = '\n'.join(self.df.chrom1.astype(str) + '\t' +
-                      self.df.start1.astype(str) + '\t' +
-                      self.df.end1.astype(str) + '\t' + self.df.name) + '\n'
+        s = '\n'.join(list(set(
+            self.df.chrom1.astype(str) + '\t' + self.df.start1.astype(str) +
+            '\t' + self.df.end1.astype(str) + '\t' + self.df.name))) + '\n'
         self.bt1 = pbt.BedTool(s, from_string=True).sort()
-        s = '\n'.join(self.df.chrom2.astype(str) + '\t' +
-                      self.df.start2.astype(str) + '\t' +
-                      self.df.end2.astype(str) + '\t' + self.df.name) + '\n'
+        s = '\n'.join(list(set(
+            self.df.chrom2.astype(str) + '\t' + self.df.start2.astype(str) +
+            '\t' + self.df.end2.astype(str) + '\t' + self.df.name))) + '\n'
         self.bt2 = pbt.BedTool(s, from_string=True).sort()
-        s = '\n'.join(self.df.chrom1.astype(str) + '\t' + 
-                      self.df[['start1', 'start2']].min(axis=1).astype(str) +
-                      '\t' + self.df[['end1', 'end2']].max(axis=1).astype(str) +
-                      '\t' + self.df.name) + '\n'
+        s = '\n'.join(
+            self.df.chrom1.astype(str) + '\t' + 
+            self.df[['start1', 'start2']].min(axis=1).astype(str) + '\t' +
+            self.df[['end1', 'end2']].max(axis=1).astype(str) + '\t' +
+            self.df.name) + '\n'
         self.bt_loop = pbt.BedTool(s, from_string=True).sort()
-        s = '\n'.join(self.df.chrom1.astype(str) + '\t' + 
-                      self.df[['end1', 'end2']].min(axis=1).astype(str) + '\t' +
-                      self.df[['start1', 'start2']].max(axis=1).astype(str)  +
-                      '\t' + self.df.name) + '\n'
+        s = '\n'.join(
+            self.df.chrom1.astype(str) + '\t' + 
+            self.df[['end1', 'end2']].min(axis=1).astype(str) + '\t' +
+            self.df[['start1', 'start2']].max(axis=1).astype(str)  + '\t' +
+            self.df.name) + '\n'
         self.bt_loop_inner = pbt.BedTool(s, from_string=True).sort()
 
 def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
