@@ -9,8 +9,7 @@ class AnnotatedBed:
         self,   
         bed,
         annot_beds,
-        bed_name_parser=None,
-        name_parsers=None,
+        completely_contains=None,
     ):  
         """
         Initialize AnnotatedBed object.
@@ -23,17 +22,36 @@ class AnnotatedBed:
         annot_beds : dict
             Dict whose keys are names (like 'gene', 'promoter', etc.) and whose
             values are bed files to annotate the input bed file with.
+            
+        completely_contains : list
+            List of keys from annot_beds. For these beds, we will check whether
+            the features is entirely contained by features "bed."
         
         """            
         self._initialize_bt(bed)
         self._num_cols = len(self.bt[0].fields)
         self._has_name_col = self._num_cols > 3
         self._initialize_dfs()
+        self._initialize_annot_beds(annot_beds)
         for k in annot_beds.keys():
-            self.annotate_bed(self.bt, annot_beds[k], k)
+            self.annotate_bed(self.bt, k, k)
+        for k in completely_contains:
+            self.annotate_bed(self.bt, k, k, complete=True)
         # Remove bt object because pybedtools relies on the file on the disk and
         # we don't know if the file will always be around.
         self.bt = None
+        
+    def _initialize_annot_beds(
+        self, 
+        annot_beds,
+    ):
+        import pybedtools as pbt
+        self.annot_beds = dict()
+        for k in annot_beds.keys():
+            if type(annot_beds[k]) == str:
+                self.annot_beds[k] = pbt.BedTool(annot_beds[k])
+            else:
+                self.annot_beds[k] = annot_beds[k]
 
     def _initialize_dfs(
         self,
@@ -46,7 +64,7 @@ class AnnotatedBed:
             self.df.index = self.df.name
         else:
             self.df.index = (self.df.chrom.astype + ':' +
-                             self.df.start.astype(str) + + '-' +
+                             self.df.start.astype(str) + '-' +
                              self.df.end.astype(str))
         self.feature_to_df = pd.DataFrame(index=self.df.index)
 
@@ -71,17 +89,20 @@ class AnnotatedBed:
     def annotate_bed(
         self,
         bt,
-        annot_bed,
         name,
+        col_name,
+        complete=None,
     ):
+        """name is the key for the bed file in self.annot_beds. col_name is used
+        to name the columns created in the dataframe."""
         import numpy as np
         import pandas as pd
-        if type(annot_bed) == str:
-            import pybedtools as pbt
-            annot_bed = pbt.BedTool(annot_bed)
-        annot_bed = annot_bed.sort()
-        has_name_col = len(annot_bed[0].fields) > 3
-        res = bt.intersect(annot_bed, sorted=True, wo=True)
+        has_name_col = len(self.annot_beds[name][0].fields) > 3
+        if complete:
+            res = bt.intersect(self.annot_beds[name], sorted=True, wo=True, F=1)
+            col_name = col_name + '_complete'
+        else:
+            res = bt.intersect(self.annot_beds[name], sorted=True, wo=True)
         df = res.to_dataframe(names=range(len(res[0].fields)))
         if self._has_name_col:
             ind = df[3].values
@@ -95,26 +116,25 @@ class AnnotatedBed:
             vals = list(df[self._num_cols + 0].astype(str) + ':' +
                         df[self._num_cols + 1].astype(str) + '-' +
                         df[self._num_cols + 2].astype(str))
-        self.df[name] = False
-        self.df.ix[set(ind), name] = True
+        self.df[col_name] = False
+        self.df.ix[set(ind), col_name] = True
         se = pd.Series(vals, index=ind)
         vc = pd.Series(se.index).value_counts()
-        self.feature_to_df[name] = np.nan
-        self.feature_to_df.ix[list(vc[vc == 1].index), name] = \
-                se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
+        self.feature_to_df[col_name] = np.nan
+        self.feature_to_df.ix[list(vc[vc == 1].index), col_name] \
+                = se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
         m = list(set(vc[vc > 1].index))
         v = []
         for i in m:
             v.append(set(se[i].values))
-        self.feature_to_df.ix[m, name] = v
+        self.feature_to_df.ix[m, col_name] = v
         
 class AnnotatedInteractions(AnnotatedBed):
     def __init__(
         self,   
         df,
         annot_beds,
-        bed_name_parser=None,
-        name_parsers=None,
+        completely_contains=None,
     ):  
         """
         Initialize AnnotatedBed object.
@@ -130,58 +150,117 @@ class AnnotatedInteractions(AnnotatedBed):
             values are bed files to annotate the input bed file with.
         
         """            
-        self.df = df
+        self.df = df.copy(deep=True)
         self.df['name'] = self.df.index
         self.feature_to_df = pd.DataFrame(index=self.df.index)
         self.annotate_interactions()
-        self._initialize_bts(df)
-        self._num_cols = 3
-        self._has_name_col = True
-        for i,bt in enumerate([self.bt1, self.bt2]):
+        self.bt_from_df()
+        self._initialize_annot_beds(annot_beds)
+        suffixes = ['1', '2', '_loop', '_loop_inner']
+        for i,bt in enumerate([self.bt1, self.bt2, self.bt_loop,
+                               self.bt_loop_inner]):
             for k in annot_beds.keys():
-                self.annotate_bed(bt, annot_beds[k], '{}{}'.format(k, i + 1))
+                self.annotate_bed(bt, k, '{}{}'.format(k, suffixes[i]))
+        for i,bt in enumerate([self.bt1, self.bt2, self.bt_loop,
+                               self.bt_loop_inner]):
+            for k in completely_contains:
+                self.annotate_bed(bt, k, '{}{}'.format(k, suffixes[i]),
+                                  complete=True)
         # Remove BedTools objects because pybedtools relies on the file on the
         # disk and we don't know if the file will always be around.
         self.bt1 = None
         self.bt2 = None
+        self.bt_loop = None
+        self.bt_loop_inner = None
+        
+    def annotate_bed(
+        self,
+        bt,
+        name,
+        col_name,
+        complete=None,
+    ):
+        """name is the key for the bed file in self.annot_beds. col_name is used
+        to name the columns created in the dataframe."""
+        import numpy as np
+        import pandas as pd
+        has_name_col = len(self.annot_beds[name][0].fields) > 3
+        if complete:
+            res = bt.intersect(self.annot_beds[name], sorted=True, wo=True, F=1)
+            col_name = col_name + '_complete'
+        else:
+            res = bt.intersect(self.annot_beds[name], sorted=True, wo=True)
+        try:
+            df = res.to_dataframe(names=range(len(res[0].fields)))
+            ind = df[3].values
+            if has_name_col:
+                vals = df[7].values
+            else:
+                vals = list(df[4].astype(str) + ':' +
+                            df[5].astype(str) + '-' +
+                            df[6].astype(str))
+            self.df[col_name] = False
+            self.df.ix[set(ind), col_name] = True
+            se = pd.Series(vals, index=ind)
+            vc = pd.Series(se.index).value_counts()
+            self.feature_to_df[col_name] = np.nan
+            self.feature_to_df.ix[list(vc[vc == 1].index), col_name] \
+                    = se[list(vc[vc == 1].index)].apply(lambda x: set([x]))
+            m = list(set(vc[vc > 1].index))
+            v = []
+            for i in m:
+                v.append(set(se[i].values))
+            self.feature_to_df.ix[m, col_name] = v
+        except IndexError:
+            pass
         
     def annotate_interactions(self):
         import numpy as np
-        self.df['peak1'] = (self.df.chrom1.astype(str) + ':' +
-                            self.df.start1.astype(str) + '-' +
-                            self.df.end1.astype(str))
-        self.df['peak2'] = (self.df.chrom2.astype(str) + ':' +
-                            self.df.start2.astype(str) + '-' +
-                            self.df.end2.astype(str))
+        self.df['anchor1'] = (self.df.chrom1.astype(str) + ':' +
+                              self.df.start1.astype(str) + '-' +
+                              self.df.end1.astype(str))
+        self.df['anchor2'] = (self.df.chrom2.astype(str) + ':' +
+                              self.df.start2.astype(str) + '-' +
+                              self.df.end2.astype(str))
         self.df['intra'] = True
         self.df.ix[self.df.chrom1 != self.df.chrom2, 'intra'] = False
         ind = self.df[self.df.intra].index
         self.df['loop'] = np.nan
         self.df.ix[ind, 'loop'] = (
-            self.df.chrom1 + 
-            self.df.ix[ind, ['start1', 'start2']].min(axis=1).astype(str) + 
-            self.df.ix[ind, ['end1', 'end2']].max(axis=1).astype(str))
+            self.df.chrom1 + ':' + 
+            self.df[['start1', 'start2']].min(axis=1).astype(str) + '-' + 
+            self.df[['end1', 'end2']].max(axis=1).astype(str))
         self.df['loop_inner'] = np.nan
         self.df.ix[ind, 'loop_inner'] = (
-            self.df.chrom1 + 
-            self.df.ix[ind, ['end1', 'end2']].min(axis=1).astype(str) + 
-            self.df.ix[ind, ['start1', 'start2']].max(axis=1).astype(str))
+            self.df.chrom1 + ':' + 
+            self.df[['end1', 'end2']].min(axis=1).astype(str) + '-' + 
+            self.df[['start1', 'start2']].max(axis=1).astype(str))
+        self.df['loop_length'] = (self.df[['end1', 'end2']].max(axis=1) - 
+                                  self.df[['start1', 'start2']].min(axis=1))
+        self.df['loop_inner_length'] = (
+            self.df[['start1', 'start2']].max(axis=1) - 
+            self.df[['end1', 'end2']].min(axis=1))
         
-    def _initialize_bts(
-        self,
-        df,           
-    ):         
+    def bt_from_df(self):         
         import pybedtools as pbt
         s = '\n'.join(self.df.chrom1.astype(str) + '\t' +
                       self.df.start1.astype(str) + '\t' +
                       self.df.end1.astype(str) + '\t' + self.df.name) + '\n'
-        self.bt1 = pbt.BedTool(s, from_string=True)
+        self.bt1 = pbt.BedTool(s, from_string=True).sort()
         s = '\n'.join(self.df.chrom2.astype(str) + '\t' +
                       self.df.start2.astype(str) + '\t' +
                       self.df.end2.astype(str) + '\t' + self.df.name) + '\n'
-        self.bt2 = pbt.BedTool(s, from_string=True)
-        self.bt1 = self.bt1.sort()
-        self.bt2 = self.bt2.sort()
+        self.bt2 = pbt.BedTool(s, from_string=True).sort()
+        s = '\n'.join(self.df.chrom1.astype(str) + '\t' + 
+                      self.df[['start1', 'start2']].min(axis=1).astype(str) +
+                      '\t' + self.df[['end1', 'end2']].max(axis=1).astype(str) +
+                      '\t' + self.df.name) + '\n'
+        self.bt_loop = pbt.BedTool(s, from_string=True).sort()
+        s = '\n'.join(self.df.chrom1.astype(str) + '\t' + 
+                      self.df[['end1', 'end2']].min(axis=1).astype(str) + '\t' +
+                      self.df[['start1', 'start2']].max(axis=1).astype(str)  +
+                      '\t' + self.df.name) + '\n'
+        self.bt_loop_inner = pbt.BedTool(s, from_string=True).sort()
 
 def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
                     **kwargs):
