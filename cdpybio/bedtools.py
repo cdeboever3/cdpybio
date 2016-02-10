@@ -334,14 +334,14 @@ class AnnotatedInteractions(AnnotatedBed):
         ind = self.df[self.df.intra].index
         self.df['loop'] = np.nan
         self.df.ix[ind, 'loop'] = (
-            self.df.chrom1 + ':' + 
-            self.df[['start1', 'start2']].min(axis=1).astype(str) + 
-            '-' + self.df[['end1', 'end2']].max(axis=1).astype(str))
+            self.df.ix[ind, 'chrom1'] + ':' + 
+            self.df.ix[ind, ['start1', 'start2']].min(axis=1).astype(str) + 
+            '-' + self.df.ix[ind, ['end1', 'end2']].max(axis=1).astype(str))
         self.df['loop_inner'] = np.nan
         self.df.ix[ind, 'loop_inner'] = (
-            self.df.chrom1 + ':' + 
-            self.df[['end1', 'end2']].min(axis=1).astype(str) + '-' +
-            self.df[['start1', 'start2']].max(axis=1).astype(str))
+            self.df.ix[ind, 'chrom1'] + ':' + 
+            self.df.ix[ind, ['end1', 'end2']].min(axis=1).astype(str) + '-' +
+            self.df.ix[ind, ['start1', 'start2']].max(axis=1).astype(str))
         self.df['loop_length'] = (self.df[['end1', 'end2']].max(axis=1) - 
                                   self.df[['start1', 'start2']].min(axis=1))
         self.df['loop_inner_length'] = (
@@ -358,17 +358,20 @@ class AnnotatedInteractions(AnnotatedBed):
             self.df.chrom2.astype(str) + '\t' + self.df.start2.astype(str) +
             '\t' + self.df.end2.astype(str) + '\t' + self.df.name))) + '\n'
         self.bt2 = pbt.BedTool(s, from_string=True).sort()
+        ind = self.df[self.df.intra].index
         s = '\n'.join(
-            self.df.chrom1.astype(str) + '\t' + 
-            self.df[['start1', 'start2']].min(axis=1).astype(str) + '\t' +
-            self.df[['end1', 'end2']].max(axis=1).astype(str) + '\t' +
-            self.df.name) + '\n'
+            self.df.ix[ind, 'chrom1'].astype(str) + '\t' + 
+            self.df.ix[ind, ['start1', 'start2']].min(axis=1).astype(str) + 
+            '\t' + self.df.ix[ind, ['end1', 'end2']].max(axis=1).astype(str) +
+            '\t' + self.df.ix[ind, 'name']) + '\n'
         self.bt_loop = pbt.BedTool(s, from_string=True).sort()
+        ind = ind[(self.df.ix[ind, ['start1', 'start2']].max(axis=1) >
+                   self.df.ix[ind, ['end1', 'end2']].min(axis=1))]
         s = '\n'.join(
-            self.df.chrom1.astype(str) + '\t' + 
-            self.df[['end1', 'end2']].min(axis=1).astype(str) + '\t' +
-            self.df[['start1', 'start2']].max(axis=1).astype(str)  + '\t' +
-            self.df.name) + '\n'
+            self.df.ix[ind, 'chrom1'].astype(str) + '\t' + 
+            self.df.ix[ind, ['end1', 'end2']].min(axis=1).astype(str) + '\t' +
+            self.df.ix[ind, ['start1', 'start2']].max(axis=1).astype(str)  +
+            '\t' + self.df.ix[ind, 'name']) + '\n'
         self.bt_loop_inner = pbt.BedTool(s, from_string=True).sort()
 
 def beds_to_boolean(beds, ref=None, beds_sorted=False, ref_sorted=False,
