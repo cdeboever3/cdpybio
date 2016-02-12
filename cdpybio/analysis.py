@@ -409,42 +409,6 @@ def liftover_bed(
             continue
     return new_coords
 
-def deseq2_vst(counts, meta, design):
-    """
-    Perform VST for counts using DESeq2.
-
-    Parameters
-    ----------
-    counts : pandas.DataFrame
-        Counts to pass to DESeq2.
-
-    meta : pandas.DataFrame
-        Pandas dataframe whose index matches the columns of counts. This is
-        passed to DESeq2's colData.
-
-    design : str
-        Design like ~subject_id that will be passed to DESeq2. The design
-        variables should match columns in meta.
-
-    Returns
-    -------
-    sf : pandas.Series
-        Series whose index matches the columns of counts and whose values are
-        the size factors from DESeq2. Divide each column by its size factor to
-        obtain normalized counts.
-
-    """
-    import rpy2.robjects as r
-    r.r('suppressMessages(library(DESeq2))')
-    r.globalenv['counts'] = counts
-    r.globalenv['meta'] = meta
-    r.r('dds = DESeqDataSetFromMatrix(countData=counts, colData=meta, '
-        'design={})'.format(design))
-    r.r('dds = estimateSizeFactors(dds)')
-    r.r('sf = sizeFactors(dds)')
-    sf = r.globalenv['sf']
-    return pd.Series(sf, index=counts.columns)
-
 def deseq2_size_factors(counts, meta, design):
     """
     Get size factors for counts using DESeq2.
@@ -471,6 +435,8 @@ def deseq2_size_factors(counts, meta, design):
 
     """
     import rpy2.robjects as r
+    from rpy2.robjects import pandas2ri
+    pandas2ri.activate()
     r.r('suppressMessages(library(DESeq2))')
     r.globalenv['counts'] = counts
     r.globalenv['meta'] = meta
