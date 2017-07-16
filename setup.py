@@ -17,7 +17,7 @@ setup(
                    'bioinformatics data, software output files, etc.'),
     install_requires=['numpy', 'scipy', 'pybedtools', 'biopython', 'pysam',
                       'pyvcf', 'matplotlib', 'networkx', 'statsmodels',
-                      'HTSeq', 'pytabix', 'MOODS'],
+                      'HTSeq', 'pytabix', 'MOODS', 'pandas'],
     license = 'MIT',
     keywords = ['bioinformatics'],
     url = 'https://github.com/cdeboever3/cdpybio',

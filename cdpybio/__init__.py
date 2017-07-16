@@ -11,6 +11,7 @@ import general
 import moodsext
 import mutect
 import picard
+import plink
 import pysamext
 import star
 import variants
