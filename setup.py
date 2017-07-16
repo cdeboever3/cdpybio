@@ -15,6 +15,9 @@ setup(
     author_email = 'cdeboever3@gmail.com',
     description = ('A collection of useful methods for working with various '
                    'bioinformatics data, software output files, etc.'),
+    install_requires=['numpy', 'scipy', 'pybedtools', 'biopython', 'pysam',
+                      'pyvcf', 'matplotlib', 'networkx', 'statsmodels',
+                      'HTSeq', 'pytabix', 'MOODS'],
     license = 'MIT',
     keywords = ['bioinformatics'],
     url = 'https://github.com/cdeboever3/cdpybio',
