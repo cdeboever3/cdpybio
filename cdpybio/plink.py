@@ -1,3 +1,6 @@
+import numpy as np
+import sys
+
 import pandas as pd
 
 def read_linear2(fn, header=True):
@@ -111,5 +114,5 @@ def parse_log2(fn):
         return(None)
     se = pd.Series([samples, females, males, cases, controls, variants],
                      index=['samples', 'females', 'males', 'cases',
-                            'controls', 'variants'])
+                            'controls', 'variants']).dropna()
     return(se)
