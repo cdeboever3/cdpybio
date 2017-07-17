@@ -1,6 +1,48 @@
 import re
+
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
+
 R_REGEX = re.compile('(.*):(.*)-(.*)')
 R_REGEX_STRAND = re.compile('(.*):(.*)-(.*):(.*)')
+
+def estimate_allele_frequency(ac, an, a=1, b=100):
+    """
+    Make sample (or other) names.
+
+    Parameters:
+    -----------
+
+    ac : array-like
+        Array-like object with the observed allele counts for each variant. If
+        ac is a pandas Series, the output dataframe will have the same index as
+        ac.
+
+    an : array-like
+        Array-like object with the number of haplotypes that were genotyped.
+
+    a : float
+        Parameter for prior distribution beta(a, b).
+
+    b : float
+        Parameter for prior distribution beta(a, b).
+
+    Returns
+    -------
+    out : pandas.DataFrame
+        Pandas dataframe with allele frequency estimate
+
+    """
+    # Credible interval is 95% highest posterior density
+    td = dict(zip(['ci_lower', 'ci_upper'], 
+                  stats.beta(a + ac, b + an - ac).interval(0.95)))
+    td['af'] = (a + ac) / (a + b + an)
+    td['af_mle'] = np.array(ac).astype(float) / np.array(an)
+    out = pd.DataFrame(td)[['af_mle', 'af', 'ci_lower', 'ci_upper']]
+    if type(ac) == pd.Series:
+        out.index = ac.index
+    return(out)
 
 def transform_standard_normal(df):
     """Transform a series or the rows of a dataframe to the values of a standard
