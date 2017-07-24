@@ -25,11 +25,12 @@ def read_linear2(fn, header=True):
               'TEST':str, 'OBS_CT':int, 'BETA':float, 'SE':float,
               'T_STAT':float, 'P':float}
     if header:
-        res = pd.read_table(fn, index_col=2, dtype=dtypes)
+        res = pd.read_table(fn, index_col=2, dtype=dtypes, low_memory=False)
     else:
         cols = ['#CHROM', 'POS', 'ID', 'REF', 'ALT1', 'TEST', 'OBS_CT',
                 'BETA', 'SE', 'T_STAT', 'P']
-        res = pd.read_table(fn, index_col=2, dtype=dtypes, names=cols)
+        res = pd.read_table(fn, index_col=2, dtype=dtypes, names=cols,
+                            low_memory=False)
     res.columns = [x.replace('#', '') for x in res.columns]
     return(res)
             
@@ -55,11 +56,12 @@ def read_logistic2(fn, header=True):
               'FIRTH?':str, 'TEST':str, 'OBS_CT':int, 'OR':float, 'SE':float,
               'T_STAT':float, 'P':float}
     if header:
-        res = pd.read_table(fn, index_col=2, dtype=dtypes)
+        res = pd.read_table(fn, index_col=2, dtype=dtypes, low_memory=False)
     else:
         cols = ['#CHROM', 'POS', 'ID', 'REF', 'ALT1', 'FIRTH?', 'TEST',
                 'OBS_CT', 'OR', 'SE', 'T_STAT', 'P']
-        res = pd.read_table(fn, index_col=2, dtype=dtypes, names=cols)
+        res = pd.read_table(fn, index_col=2, dtype=dtypes, names=cols,
+                            low_memory=False)
     res.columns = [x.replace('#', '') for x in res.columns]
     return(res)
 
