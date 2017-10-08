@@ -13,7 +13,8 @@ def read_linear2(fn, header=True):
 
     header : str
         True if the file has a header (this is generally the case unless the
-        file has been processed after it was created).
+        file has been processed after it was created). False if no header. Pass
+        None if it's unknown whether the file has a header.
 
     Returns
     -------
@@ -24,6 +25,15 @@ def read_linear2(fn, header=True):
     dtypes = {'#CHROM':str, 'POS':int, 'ID':str, 'REF':str, 'ALT1':str,
               'TEST':str, 'OBS_CT':int, 'BETA':float, 'SE':float,
               'T_STAT':float, 'P':float}
+    if header is None:
+        if fn[-3:] == '.gz':
+            from gzip import open
+            with gzip.open(fn, 'r') as f:
+                line = f.readline()
+        else:
+            with open(fn, 'r') as f:
+                line = f.readline()
+        header = line [0] == '#'
     if header:
         res = pd.read_table(fn, index_col=2, dtype=dtypes, low_memory=False)
     else:
@@ -55,6 +65,12 @@ def read_logistic2(fn, header=True):
     dtypes = {'#CHROM':str, 'POS':int, 'ID':str, 'REF':str, 'ALT1':str,
               'FIRTH?':str, 'TEST':str, 'OBS_CT':int, 'OR':float, 'SE':float,
               'T_STAT':float, 'P':float}
+    if header is None:
+        if fn[-3:] == '.gz':
+            from gzip import open
+        with open(fn, 'r') as f:
+            line = f.readline()
+        header = line [0] == '#'
     if header:
         res = pd.read_table(fn, index_col=2, dtype=dtypes, low_memory=False)
     else:
