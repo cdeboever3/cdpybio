@@ -28,7 +28,7 @@ def read_linear2(fn, header=True):
     if header is None:
         if fn[-3:] == '.gz':
             from gzip import open
-            with gzip.open(fn, 'r') as f:
+            with open(fn, 'r') as f:
                 line = f.readline()
         else:
             with open(fn, 'r') as f:
@@ -44,7 +44,7 @@ def read_linear2(fn, header=True):
     res.columns = [x.replace('#', '') for x in res.columns]
     return(res)
             
-def read_logistic2(fn, header=True):
+def read_logistic2(fn, header=True, firth=False):
     """Read a plink 2 output file of type glm.logistic into a pandas DataFrame.
 
     Parameters
@@ -52,9 +52,13 @@ def read_logistic2(fn, header=True):
     fn : str 
         Path to the plink file. The file can be gzipped or not.
 
-    header : str
+    header : bool or None
         True if the file has a header (this is generally the case unless the
         file has been processed after it was created).
+
+    firth : bool or None
+        True if Firth option was used. If None, check whether Firth column is
+        present.
 
     Returns
     -------
@@ -71,11 +75,22 @@ def read_logistic2(fn, header=True):
         with open(fn, 'r') as f:
             line = f.readline()
         header = line [0] == '#'
+    if firth is None:
+        with open(fn, 'r') as f:
+            line = f.readline()
+        if header:
+            firth = 'FIRTH' in line
+        else:
+            firth = len(line.split()) == 12
     if header:
         res = pd.read_table(fn, index_col=2, dtype=dtypes, low_memory=False)
     else:
-        cols = ['#CHROM', 'POS', 'ID', 'REF', 'ALT1', 'FIRTH?', 'TEST',
-                'OBS_CT', 'OR', 'SE', 'T_STAT', 'P']
+        if firth:
+            cols = ['#CHROM', 'POS', 'ID', 'REF', 'ALT1', 'FIRTH?', 'TEST',
+                    'OBS_CT', 'OR', 'SE', 'T_STAT', 'P']
+        else:
+            cols = ['#CHROM', 'POS', 'ID', 'REF', 'ALT1', 'TEST', 'OBS_CT',
+                    'OR', 'SE', 'T_STAT', 'P']
         res = pd.read_table(fn, index_col=2, dtype=dtypes, names=cols,
                             low_memory=False)
     res.columns = [x.replace('#', '') for x in res.columns]
