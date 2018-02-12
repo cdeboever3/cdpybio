@@ -7,6 +7,12 @@ import scipy.stats as stats
 R_REGEX = re.compile('(.*):(.*)-(.*)')
 R_REGEX_STRAND = re.compile('(.*):(.*)-(.*):(.*)')
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    # https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
 def estimate_allele_frequency(ac, an, a=1, b=100):
     """
     Make sample (or other) names.
