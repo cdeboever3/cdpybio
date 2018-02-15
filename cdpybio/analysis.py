@@ -1,5 +1,32 @@
 import pandas as pd
 
+chrom_sizes = pd.Series(
+    {1: 249250621,
+     10: 135534747,
+     11: 135006516,
+     12: 133851895,
+     13: 115169878,
+     14: 107349540,
+     15: 102531392,
+     16: 90354753,
+     17: 81195210,
+     18: 78077248,
+     19: 59128983,
+     2: 243199373,
+     20: 63025520,
+     21: 48129895,
+     22: 51304566,
+     3: 198022430,
+     4: 191154276,
+     5: 180915260,
+     6: 171115067,
+     7: 159138663,
+     8: 146364022,
+     9: 141213431,
+    }
+)
+chrom_sizes_norm = chrom_sizes / chrom_sizes.max()
+
 def _make_tableau20():
     # tableau20 from # http://www.randalolson.com/2014/06/28/how-to-make-beautiful-data-visualizations-in-python-with-matplotlib/
     tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),
@@ -524,10 +551,6 @@ def categories_to_colors(cats, colormap=None):
 
     Returns
     -------
-    colors : pd.Series
-        Series whose values are the colors for each category. If cats was a
-        Series, then out will have the same index as cats.
-
     legend : pd.Series
         Series whose values are colors and whose index are the original
         categories that correspond to those colors.
@@ -538,8 +561,12 @@ def categories_to_colors(cats, colormap=None):
     if type(cats) != pd.Series:
         cats = pd.Series(cats)
     legend = pd.Series(dict(zip(set(cats), colormap)))
-    colors = pd.Series([legend[x] for x in cats.values], index=cats.index)
-    return colors, legend
+    # colors = pd.Series([legend[x] for x in cats.values], index=cats.index)
+    # I've removed this output:
+    # colors : pd.Series
+    #     Series whose values are the colors for each category. If cats was a
+    #     Series, then out will have the same index as cats.
+    return(legend)
 
 def plot_color_legend(legend, horizontal=False, ax=None):
     """
@@ -950,3 +977,218 @@ class SVD:
                 anova.ix['fvalue', i, j] = f 
                 anova.ix['pvalue', i, j] = p 
         return anova
+
+def manhattan_plot(
+    res, 
+    ax, 
+    p_filter=1,
+    p_cutoff=None,
+    marker_size=10, 
+    font_size=8, 
+    chrom_labels=range(1, 23)[0::2],
+    label_column=None,
+    category_order=None,
+    legend=True,
+):
+    """
+    Make Manhattan plot for GWAS results. Currently only support autosomes.
+    
+    Parameters
+    ----------
+    res : pandas.DataFrame
+        GWAS results. The following columns are required - chrom (chromsome,
+        int), pos (genomic position, int), P (GWAS p-value, float).
+        
+    ax : matplotlib.axis
+        Matplotlib axis to make Manhattan plot on.
+
+    p_filter : float
+        Only plot p-values smaller than this cutoff. This is useful for testing
+        because filtering on p-values speeds up the plotting.
+        
+    p_cutoff : float
+        Plot horizontal line at this p-value.
+        
+    marker_size : int
+        Size of Manhattan markers.
+
+    font_size : int
+        Font size for plots.
+
+    chrom_labels : list
+        List of ints indicating which chromsomes to label. You may want to
+        modulate this based on the size of the plot. Currently only integers
+        1-22 are supported.
+
+    label_column : str
+        String with column name from res. This column should contain a
+        categorical annotation for each variant. These will be indicated by
+        colors.
+
+    category_order : list
+        If label_column is not None, you can provide a list of the categories
+        that are contained in the label_column. This will be used to assign the
+        color palette and will specify the z-order of the categories.
+
+    legend : boolean
+        If True and label_column is not None, plot a legend.
+        
+    Returns
+    -------
+    res : pandas.Dataframe
+        GWAS results. The results will have additional columns that were used
+        for plotting.
+
+    ax : matplotlib.axis
+        Axis with the Manhattan plot.
+
+    colors : pd.Series or None
+        If label_column is None, this will be None. Otherwise, if a label_column
+        is specified, this will be a series with a mapping between the labels
+        and the colors for each label.
+
+    """
+    # TODO: It might make sense to allow a variable that specifies the z-order
+    # of labels in label_column. If there are many labels and points in the same
+    # place, certain annotations will be preferentially shown.
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import seaborn as sns
+    # Filter results based on p-value.
+    if p_filter < 1:
+        res = res[res['P'] < p_filter]
+    # Assign x coordinates for each association.
+    res['xpos'] = np.nan
+    chrom_vc = res['chrom'].value_counts()
+    # total_length is arbitrary, but it's a little easier than working with the 
+    # normalized chromosome sizes to avoid small numbers.
+    total_length = 1000
+    right = chrom_sizes_norm.cumsum()
+    right = right / right[22] * total_length
+    left = chrom_sizes_norm.cumsum() - chrom_sizes_norm[1]
+    left = pd.Series(0, range(1, 23))
+    left[1:23] = right[0:21].values
+    for chrom in range(1, 23):
+        res.loc[res['chrom'] == chrom, 'xpos'] = np.linspace(
+            left[chrom], right[chrom], chrom_vc[chrom])
+    # Assign colors.
+    grey = mpl.colors.to_rgb('grey')
+    light_grey = (0.9, 0.9, 0.9)
+    middle_grey = (0.8, 0.8, 0.8)
+    # I first set everything to black, but in the end everything should be
+    # changed to one of the greys (or other colors if there is an annotation
+    # column). If there are black points on the plot, that indicates a problem.
+    res['color'] = 'black'
+    for chrom in range(1, 23)[0::2]:
+        ind = res[res.chrom == chrom].index
+        res.loc[ind, 'color'] = pd.Series([grey for x in ind], index=ind)
+    for chrom in range(1, 23)[1::2]:
+        ind = res[res.chrom == chrom].index
+        res.loc[ind, 'color'] = pd.Series([middle_grey for x in ind], index=ind)
+    if label_column is not None:
+        if category_order is not None:
+            assert set(category_order) == set(res[label_column].dropna())
+            categories = category_order
+        else:
+            categories = list(set(res[label_column].dropna()))
+        colors = categories_to_colors(
+            categories, 
+            colormap=sns.color_palette('colorblind'),
+        )
+        for cat in categories:
+            ind = res[res[label_column] == cat].index
+            res.loc[ind, 'color'] = pd.Series([colors[cat] for x in ind],
+                                              index=ind)
+    
+    # Plot
+    if label_column is not None:
+        ind = res[res[label_column].isnull()].index
+        ax.scatter(
+            res.loc[ind, 'xpos'], 
+            -np.log10(res.loc[ind, 'P']),
+            color=res.loc[ind, 'color'], 
+            s=marker_size, 
+            alpha=0.75,
+            rasterized=True,
+            label=None,
+        )
+        for cat in reversed(categories):
+            ind = res[res[label_column] == cat].index
+            ax.scatter(
+                res.loc[ind, 'xpos'], 
+                -np.log10(res.loc[ind, 'P']),
+                color=res.loc[ind, 'color'], 
+                s=marker_size, 
+                alpha=0.75,
+                rasterized=True,
+                label=None,
+            )
+    else:
+        ax.scatter(
+            res['xpos'], 
+            -np.log10(res['P']),
+            color=res['color'], 
+            s=marker_size, 
+            alpha=0.75,
+            rasterized=True,
+            label=None,
+        )
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    ax.grid(axis='x')
+    ax.grid(axis='y')
+    ax.grid(axis='y', alpha=0.5, ls='-', lw=0.6)
+    if p_cutoff is not None:
+        ax.hlines(
+            -np.log10(p_cutoff), 
+            -5, 
+            total_length + 5, 
+            color='red', 
+            linestyles='--',
+            lw=0.8, 
+            alpha=0.5,
+        )
+    # These next two lines add background shading. I may add back in as option.
+    # for chrom in range(1, 23)[0::2]:
+    #     ax.axvspan(left[chrom], right[chrom], facecolor=(0.4, 0.4, 0.4), alpha=0.2, lw=0)
+    ax.set_xlim(-5, total_length + 5)
+    ax.set_ylim(0, ymax)
+    # Set chromosome labels
+    # ind = range(1, 23)[0::2]
+    # if skip19:
+    #     ind = [x for x in ind if x != 19]
+    ind = [x for x in chrom_labels if x in range(1, 23)]
+    ax.set_xticks(left[ind] + (right[ind] - left[ind]) / 2)
+    ax.set_xticklabels(ind, fontsize=font_size)
+    ax.set_ylabel('$-\log_{10} p$ value', fontsize=font_size)
+    for t in ax.get_xticklabels() + ax.get_yticklabels():
+        t.set_fontsize(font_size)
+    if label_column is not None and legend:
+        for cat in categories:
+            ax.scatter(
+                -100, 
+                -100, 
+                s=marker_size, 
+                color=colors[cat],
+                label=cat,
+            )
+        if legend:
+            ax.legend(
+                fontsize=font_size- 1, 
+                framealpha=0.5, 
+                frameon=True, 
+                facecolor='white',
+            )
+    # TODO: eventually, it would be better to be smarter about the x-axis
+    # limits. Depending on the size of the markers and plot, some of the markers
+    # might be cut off.
+    ax.set_xlim(-5, total_length + 5)
+    # TODO: eventually, it would be better to be smarter about the y-axis
+    # limits. Depending on the size of the markers and plot, some of the markers
+    # might be cut off. Matplotlib doesn't know anything about the size of the
+    # markers, so it might set the y-limit too low.
+    ax.set_ylim(-1 * np.log10(p_filter), ymax)
+    if label_column is None:
+        colors = None
+    return(res, ax, colors)
