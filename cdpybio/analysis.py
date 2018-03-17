@@ -1070,8 +1070,9 @@ def manhattan_plot(
     left = pd.Series(0, range(1, 23))
     left[1:23] = right[0:21].values
     for chrom in range(1, 23):
-        res.loc[res['chrom'] == chrom, 'xpos'] = np.linspace(
-            left[chrom], right[chrom], chrom_vc[chrom])
+        if chrom in res['chrom'].values:
+            res.loc[res['chrom'] == chrom, 'xpos'] = np.linspace(
+                left[chrom], right[chrom], chrom_vc[chrom])
     # Assign colors.
     grey = mpl.colors.to_rgb('grey')
     light_grey = (0.9, 0.9, 0.9)
@@ -1081,11 +1082,13 @@ def manhattan_plot(
     # column). If there are black points on the plot, that indicates a problem.
     res['color'] = 'black'
     for chrom in range(1, 23)[0::2]:
-        ind = res[res.chrom == chrom].index
-        res.loc[ind, 'color'] = pd.Series([grey for x in ind], index=ind)
+        if chrom in res['chrom'].values:
+            ind = res[res.chrom == chrom].index
+            res.loc[ind, 'color'] = pd.Series([grey for x in ind], index=ind)
     for chrom in range(1, 23)[1::2]:
-        ind = res[res.chrom == chrom].index
-        res.loc[ind, 'color'] = pd.Series([middle_grey for x in ind], index=ind)
+        if chrom in res['chrom'].values:
+            ind = res[res.chrom == chrom].index
+            res.loc[ind, 'color'] = pd.Series([middle_grey for x in ind], index=ind)
     if label_column is not None:
         if category_order is not None:
             assert set(category_order) == set(res[label_column].dropna())
