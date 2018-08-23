@@ -16,6 +16,12 @@ introduction, most functions are documented with docstrings.
 * PyVCF
 * py.test for testing
 
+All of these are available through conda (though you may need the [bioconda](https://bioconda.github.io/) channel):
+
+```
+conda install biopython htseq numpy pandas pybedtools pysam pyvcf
+```
+
 # Submodules
 
 ## `bedtools`
