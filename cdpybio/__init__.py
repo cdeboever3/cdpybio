@@ -3,7 +3,6 @@ import os
 import analysis
 import bedtools
 import biobambam
-import cghub
 import express
 import featureCounts
 import gencode
