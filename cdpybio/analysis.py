@@ -649,10 +649,10 @@ def make_color_legend_rects(colors, labels=None):
     return out 
 
 class SVD:
-    def __init__(self, df, mean_center=True, scale_variance=False):
+    def __init__(self, df, mean_center=True, scale_variance=False, full_matrices=False):
         """
-        Perform SVD for data matrix using scipy. Note that this is currently
-        inefficient for large matrices due to some of the pandas operations.
+        Perform SVD for data matrix using scipy.linalg.svd. Note that this is currently inefficient
+        for large matrices due to some of the pandas operations.
 
         Parameters
         ----------
@@ -663,9 +663,13 @@ class SVD:
             If True, mean center the rows. This should be done if not already
             done.
 
-        scale_variance : boole
+        scale_variance : bool
             If True, scale the variance of each row to be one. Combined with
             mean centering, this will transform your data into z-scores.
+
+        full_matrices : bool
+            Passed to scipy.linalg.svd. If True, U and Vh are of shape (M, M), (N, N). If False, the
+            shapes are (M, K) and (K, N), where K = min(M, N).
         
         """
         import copy
@@ -675,18 +679,25 @@ class SVD:
             self.data = (self.data.T - self.data.mean(axis=1)).T
         if scale_variance:
             self.data = (self.data.T / self.data.std(axis=1)).T
-        self._perform_svd()
+        self._perform_svd(full_matrices)
 
-    def _perform_svd(self):
+    def _perform_svd(self, full_matrices):
         from scipy.linalg import svd
-        u, s, vh = svd(self.data, full_matrices=False)
+        u, s, vh = svd(self.data, full_matrices=full_matrices)
         self.u_orig = u
         self.s_orig = s
         self.vh_orig = vh
 
-        cols = ['PC{}'.format(x) for x in range(1, self.data.shape[1] + 1)]
-        self.u = pd.DataFrame(u, index=self.data.index, columns=cols)
-        self.v = pd.DataFrame(vh.T, index=self.data.columns, columns=cols)
+        self.u = pd.DataFrame(
+            u, 
+            index=self.data.index, 
+            columns=['PC{}'.format(x) for x in range(1, u.shape[1] + 1)],
+        )
+        self.v = pd.DataFrame(
+            vh.T, 
+            index=self.data.columns, 
+            columns=['PC{}'.format(x) for x in range(1, vh.shape[0] + 1)],
+        )
         index = ['PC{}'.format(x) for x in range(1, len(s) + 1)]
         self.s_norm = pd.Series(s / s.sum(), index=index)
 
