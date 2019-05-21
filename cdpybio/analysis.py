@@ -782,7 +782,7 @@ class SVD:
 
         color : pandas.Series
             Pandas series containing a categorical variable to color the scatter
-            points. Currently limited to 10 distinct values (colors).
+            points. 
 
         s : pandas.Series
             Pandas series containing a categorical variable to size the scatter
@@ -813,13 +813,19 @@ class SVD:
         TODO: Add ability to label points. 
         """
         import matplotlib.pyplot as plt
+        import seaborn as sns
+        assert s <= 7, 'Error: too many values for "s"'
         if v:
             df = self.v
         else:
             df = self.u
         if color is not None:
-            colormap = pd.Series(dict(zip(set(color.values),
-                                          tableau20[0:2 * len(set(color)):2])))
+            if color.unique().shape[0] <= 10:
+                colormap = pd.Series(dict(zip(set(color.values),
+                                              tableau20[0:2 * len(set(color)):2])))
+            else:
+                colormap = pd.Series(dict(zip(set(color.values), 
+                                              sns.color_palette('husl', len(set(color))))))
             color = pd.Series([colormap[x] for x in color.values],
                               index=color.index)
             color_legend = True

@@ -15,11 +15,12 @@ introduction, most functions are documented with docstrings.
 * pysam (v0.6 or greater)
 * PyVCF
 * py.test for testing
+* seaborn
 
 All of these are available through conda (though you may need the [bioconda](https://bioconda.github.io/) channel):
 
 ```
-conda install biopython htseq numpy pandas pybedtools pysam pyvcf
+conda install biopython htseq numpy pandas pybedtools pysam pyvcf seaborn
 ```
 
 # Submodules
