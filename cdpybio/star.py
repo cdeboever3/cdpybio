@@ -4,6 +4,7 @@ import pdb
 
 import numpy as np
 import pandas as pd
+from functools import reduce
 
 # Column labels for SJ.out.tab.
 COLUMN_NAMES = ('chrom', 'start', 'end', 'strand',
@@ -324,14 +325,14 @@ def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
 
     # Add column indicating which gene the junctions belong to for annotated
     # jxn's.
-    geneSE = pd.Series(dict(zip(extDF.intron.values,extDF.gene)))
+    geneSE = pd.Series(dict(list(zip(extDF.intron.values,extDF.gene))))
     annotDF['gene_id'] = ''
     annotDF['gene_id'] = geneSE[annotDF.index]
 
     # Now we'll figure out the genes for the junctions that aren't in our
     # database. We can associate each start and end with a gene and use this.
-    start_gene = dict(zip(extDF['chrom:start'], extDF.gene))
-    end_gene = dict(zip(extDF['chrom:end'], extDF.gene))
+    start_gene = dict(list(zip(extDF['chrom:start'], extDF.gene)))
+    end_gene = dict(list(zip(extDF['chrom:end'], extDF.gene)))
     
     genes = []
     for ind in annotDF[annotDF.ext_annotated == False].index:
@@ -344,7 +345,7 @@ def _filter_jxns_donor_acceptor(sj_outP, annotDF, extDF):
     annotDF.ix[annotDF.ext_annotated == False, 'gene_id'] = genes
 
     # We can use the genes to assign strand to the novel splice junctions.
-    strandSE = pd.Series(dict(zip(extDF.gene,extDF.strand)))
+    strandSE = pd.Series(dict(list(zip(extDF.gene,extDF.strand))))
     ind = annotDF[annotDF.ext_annotated == False].index
     annotDF.ix[ind, 'strand'] = strandSE[annotDF.ix[ind, 'gene_id']].values
 
@@ -501,7 +502,7 @@ def combine_sj_out(
     sj_outD = _make_sj_out_dict(fns, jxns=jxns,
                                 define_sample_name=define_sample_name)
     stats.append('Number of junctions in SJ.out file per sample')
-    for k in sj_outD.keys():
+    for k in list(sj_outD.keys()):
         stats.append('{0}\t{1:,}'.format(k, sj_outD[k].shape[0]))
     stats.append('')
     if verbose:
@@ -587,7 +588,7 @@ def _make_splice_targets_dict(df, feature, strand):
         if feature == 'acceptor':
             target = 'end'
 
-    for k in g.groups.keys():
+    for k in list(g.groups.keys()):
         d[k] = np.array(list(set(df.ix[g.groups[k], target])))
         d[k].sort()
     return d

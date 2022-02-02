@@ -85,7 +85,7 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
         ordered_inputs += list(sig[sig.group == i].index)
         tdf = not_sig[not_sig.group == i]
         count = vc[i]
-        for n in xrange(num_null_sets):
+        for n in range(num_null_sets):
             if tdf.shape[0] == 0:
                 groups = [i]
                 while tdf.shape[0] == 0:
@@ -100,7 +100,7 @@ def generate_null_snvs(df, snvs, num_null_sets=5):
                     t = bins[b]
                     # Get last set of bin values and the value for the bin we
                     # want to change.
-                    d = dict(zip(not_sig.columns, g.split('::')))
+                    d = dict(list(zip(not_sig.columns, g.split('::'))))
                     cat = d[b]
                     # Randomly walk away from bin value.
                     ind = t.index(cat)
@@ -248,7 +248,7 @@ def ld_prune(df, ld_beds, snvs=None):
     if snvs:
         df = df.ix[set(df.index) & set(snvs)]
     keep = set()
-    for chrom in ld_beds.keys():
+    for chrom in list(ld_beds.keys()):
         tdf = df[df['chrom'].astype(str) == chrom]
         if tdf.shape[0] > 0:
             f = tabix.open(ld_beds[chrom])
@@ -262,7 +262,7 @@ def ld_prune(df, ld_beds, snvs=None):
                     r = f.query(chrom, p - 1, p)
                     while True:
                         try:
-                            n = r.next()
+                            n = next(r)
                             p1, p2, r2 = n[-1].split(':')
                             if float(r2) >= 0.8:
                                 ld_d[p].append(int(p2))
@@ -272,9 +272,9 @@ def ld_prune(df, ld_beds, snvs=None):
                     continue
             # Make adjacency matrix for LD.
             cols = sorted(list(set(
-                [item for sublist in ld_d.values() for item in sublist])))
-            t = pd.DataFrame(0, index=ld_d.keys(), columns=cols)
-            for k in ld_d.keys():
+                [item for sublist in list(ld_d.values()) for item in sublist])))
+            t = pd.DataFrame(0, index=list(ld_d.keys()), columns=cols)
+            for k in list(ld_d.keys()):
                 t.ix[k, ld_d[k]] = 1
             t.index = ['{}:{}'.format(chrom, x) for x in t.index]
             t.columns = ['{}:{}'.format(chrom, x) for x in t.columns]
@@ -290,7 +290,7 @@ def ld_prune(df, ld_beds, snvs=None):
             c = nx.connected_components(g)
             while True:
                 try:
-                    sg = c.next()
+                    sg = next(c)
                     s = tdf.ix[t.index[list(sg)]]
                     keep.add(s[s.pvalue == s.pvalue.min()].index[0])
                 except StopIteration:
@@ -328,7 +328,7 @@ def ld_expand(df, ld_beds):
     import pybedtools as pbt
     import tabix
     out_snps = []
-    for chrom in ld_beds.keys():
+    for chrom in list(ld_beds.keys()):
         t = tabix.open(ld_beds[chrom])
         tdf = df[df['chrom'].astype(str) == chrom]
         for ind in tdf.index:
@@ -338,7 +338,7 @@ def ld_expand(df, ld_beds):
                 r = t.query('{}'.format(chrom), p - 1, p)
                 while True:
                     try:
-                        n = r.next()
+                        n = next(r)
                         p1, p2, r2 = n[-1].split(':')
                         if float(r2) >= 0.8:
                             out_snps.append('{}\t{}\t{}\t{}\n'.format(
@@ -560,7 +560,7 @@ def categories_to_colors(cats, colormap=None):
         colormap = tableau20
     if type(cats) != pd.Series:
         cats = pd.Series(cats)
-    legend = pd.Series(dict(zip(set(cats), colormap)))
+    legend = pd.Series(dict(list(zip(set(cats), colormap))))
     # colors = pd.Series([legend[x] for x in cats.values], index=cats.index)
     # I've removed this output:
     # colors : pd.Series
@@ -637,7 +637,7 @@ def make_color_legend_rects(colors, labels=None):
     """
     from matplotlib.pyplot import Rectangle
     if labels:
-        d = dict(zip(labels, colors))
+        d = dict(list(zip(labels, colors)))
         se = pd.Series(d)
     else:
         se = colors
@@ -729,17 +729,17 @@ class SVD:
             s_norm = self.s_norm
         if cumulative:
             s_cumsum = s_norm.cumsum()
-            plt.bar(range(s_cumsum.shape[0]), s_cumsum.values,
+            plt.bar(list(range(s_cumsum.shape[0])), s_cumsum.values,
                     label='Cumulative', color=(0.17254901960784313,
                                                0.6274509803921569,
                                                0.17254901960784313))
-            plt.bar(range(s_norm.shape[0]), s_norm.values, label='Per PC',
+            plt.bar(list(range(s_norm.shape[0])), s_norm.values, label='Per PC',
                     color=(0.12156862745098039, 0.4666666666666667,
                            0.7058823529411765))
             plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
             plt.ylabel('Variance')
         else:
-            plt.bar(range(s_norm.shape[0]), s_norm.values,
+            plt.bar(list(range(s_norm.shape[0])), s_norm.values,
                     color=(0.12156862745098039, 0.4666666666666667,
                            0.7058823529411765))
             plt.ylabel('Proportion variance explained')
@@ -821,11 +821,11 @@ class SVD:
             df = self.u
         if color is not None:
             if color.unique().shape[0] <= 10:
-                colormap = pd.Series(dict(zip(set(color.values),
-                                              tableau20[0:2 * len(set(color)):2])))
+                colormap = pd.Series(dict(list(zip(set(color.values),
+                                              tableau20[0:2 * len(set(color)):2]))))
             else:
-                colormap = pd.Series(dict(zip(set(color.values), 
-                                              sns.color_palette('husl', len(set(color))))))
+                colormap = pd.Series(dict(list(zip(set(color.values), 
+                                              sns.color_palette('husl', len(set(color)))))))
             color = pd.Series([colormap[x] for x in color.values],
                               index=color.index)
             color_legend = True
@@ -835,8 +835,8 @@ class SVD:
             color = pd.Series([tableau20[0]] * df.shape[0], index=df.index)
             color_legend = False
         if s is not None:
-            smap = pd.Series(dict(zip(
-                set(s.values), range(30, 351)[0::50][0:len(set(s)) + 1])))
+            smap = pd.Series(dict(list(zip(
+                set(s.values), list(range(30, 351))[0::50][0:len(set(s)) + 1]))))
             s = pd.Series([smap[x] for x in s.values],
                           index=s.index)
             s_legend = True
@@ -849,7 +849,7 @@ class SVD:
                    'p', '2', '<', '|', '>', '_', 'h', 
                    '1', '2', '3', '4', '8', '^', 'D']
         if marker is not None:
-            markermap = pd.Series(dict(zip(set(marker.values), markers)))
+            markermap = pd.Series(dict(list(zip(set(marker.values), markers))))
             marker = pd.Series([markermap[x] for x in marker.values],
                                index=marker.index)
             marker_legend = True
@@ -1002,7 +1002,7 @@ def manhattan_plot(
     p_cutoff=None,
     marker_size=10, 
     font_size=8, 
-    chrom_labels=range(1, 23)[0::2],
+    chrom_labels=list(range(1, 23))[0::2],
     label_column=None,
     category_order=None,
     legend=True,
@@ -1084,7 +1084,7 @@ def manhattan_plot(
     right = chrom_sizes_norm.cumsum()
     right = right / right[22] * total_length
     left = chrom_sizes_norm.cumsum() - chrom_sizes_norm[1]
-    left = pd.Series(0, range(1, 23))
+    left = pd.Series(0, list(range(1, 23)))
     left[1:23] = right[0:21].values
     for chrom in range(1, 23):
         if chrom in res['chrom'].values:

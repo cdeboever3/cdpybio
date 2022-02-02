@@ -136,7 +136,7 @@ def make_promoter_bed(
         ftype = 'promoter'
 
     gtf = it.islice(HTSeq.GFF_Reader(gtf), None)
-    line = gtf.next()
+    line = next(gtf)
     while line != '':
         if line.type == feature:
             if line.iv.strand == '+':
@@ -152,7 +152,7 @@ def make_promoter_bed(
                                 '{}_{}'.format(line.attr[name_id], ftype), '.',
                                 line.iv.strand])))
         try:
-            line = gtf.next()
+            line = next(gtf)
         except StopIteration:
             line = ''
 
@@ -217,7 +217,7 @@ def merge_bed_by_name(bt):
                                                          r.end, r.name,
                                                          r.strand]]
     new_lines = []
-    for name in name_lines.keys():
+    for name in list(name_lines.keys()):
         new_lines += _merge_interval_list(name_lines[name])
     new_lines = ['\t'.join(map(str, x)) for x in new_lines]
     return pbt.BedTool('\n'.join(new_lines) + '\n', from_string=True)
@@ -341,13 +341,13 @@ def make_transcript_gene_se(fn):
     gtf = it.islice(HTSeq.GFF_Reader(fn), None)
     transcripts = []
     genes = []
-    line = gtf.next()
+    line = next(gtf)
     while line != '':
         if line.type == 'transcript':
             transcripts.append(line.attr['transcript_id'])
             genes.append(line.attr['gene_id'])
         try:
-            line = gtf.next()
+            line = next(gtf)
         except StopIteration:
             line = ''
    
@@ -378,7 +378,7 @@ def make_gene_info_df(fn):
     eof = False
     while not eof:
         try:
-            entry = gff_iter.next()
+            entry = next(gff_iter)
             if entry.type == 'gene':
                 convD[entry.attr['gene_id']] = [entry.attr['gene_name'], 
                                                 entry.attr['gene_type'],
@@ -428,13 +428,13 @@ def make_splice_junction_df(fn, type='gene'):
     gffI = it.islice(HTSeq.GFF_Reader(fn), None)    
     juncL = []
     eof = False
-    entry = gffI.next()
+    entry = next(gffI)
     count = 1
     last_count = 1
     while not eof:
         if entry.type == 'transcript':
             exonL = []
-            entry = gffI.next()
+            entry = next(gffI)
             count += 1
             gene = entry.attr['gene_id']
             strand = entry.iv.strand
@@ -442,7 +442,7 @@ def make_splice_junction_df(fn, type='gene'):
                 if entry.type == 'exon':
                     exonL.append(entry)
                 try:
-                    entry = gffI.next()
+                    entry = next(gffI)
                     count += 1
                 except StopIteration:
                     eof = True
@@ -474,7 +474,7 @@ def make_splice_junction_df(fn, type='gene'):
                                   intron])
         else:
             try:
-                entry = gffI.next()
+                entry = next(gffI)
                 count += 1
             except StopIteration:
                 eof = True

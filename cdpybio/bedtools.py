@@ -2,7 +2,8 @@ import copy
 import pandas as pd
 import pybedtools as pbt
 
-from general import _sample_names
+from .general import _sample_names
+from functools import reduce
 
 class AnnotatedInteractions:
     def __init__(
@@ -40,28 +41,28 @@ class AnnotatedInteractions:
         self.annotate_interactions()
         self.bts_from_df()
         self._initialize_annot_beds(annot_beds)
-        for k in annot_beds.keys():
+        for k in list(annot_beds.keys()):
             self.annotate_bed(bt=self.bt1, name=k, col_name='{}1'.format(k),
                               df_col='anchor1')
             if k in completely_contains:
                 self.annotate_bed(bt=self.bt1, name=k,
                                   col_name='{}1_complete'.format(k),
                                   df_col='anchor1', complete=True)
-        for k in annot_beds.keys():
+        for k in list(annot_beds.keys()):
             self.annotate_bed(bt=self.bt2, name=k, col_name='{}2'.format(k),
                               df_col='anchor2')
             if k in completely_contains:
                 self.annotate_bed(bt=self.bt2, name=k,
                                   col_name='{}2_complete'.format(k),
                                   df_col='anchor2', complete=True)
-        for k in annot_beds.keys():
+        for k in list(annot_beds.keys()):
             self.annotate_bed(bt=self.bt1, name=k, col_name='{}_loop'.format(k),
                               df_col='loop')
             if k in completely_contains:
                 self.annotate_bed(bt=self.bt1, name=k,
                                   col_name='{}_loop_complete'.format(k),
                                   df_col='loop', complete=True)
-        for k in annot_beds.keys():
+        for k in list(annot_beds.keys()):
             self.annotate_bed(bt=self.bt1, name=k,
                               col_name='{}_loop_inner'.format(k),
                               df_col='loop_inner')
@@ -80,7 +81,7 @@ class AnnotatedInteractions:
     ):
         import pybedtools as pbt
         self.annot_beds = dict()
-        for k in annot_beds.keys():
+        for k in list(annot_beds.keys()):
             if type(annot_beds[k]) == str:
                 self.annot_beds[k] = pbt.BedTool(annot_beds[k])
             else:
@@ -131,8 +132,8 @@ class AnnotatedInteractions:
         t = 'track type=bed name="{}_loop_inner"'.format(name)
         self.bt_loop_inner.saveas(path + '_loop_inner.bed', trackline=t)
         self._bt_loop_inner_path = path + '_loop_inner.bed'
-        import cPickle
-        cPickle.dump(self, open(path + '.pickle', 'w'))   
+        import pickle
+        pickle.dump(self, open(path + '.pickle', 'w'))   
     
     def annotate_bed(
         self,
@@ -177,7 +178,7 @@ class AnnotatedInteractions:
             res = bt.intersect(self.annot_beds[name], sorted=True, wo=True)
         print('two')
         try:
-            df = res.to_dataframe(names=range(len(res[0].fields)))
+            df = res.to_dataframe(names=list(range(len(res[0].fields))))
             ind = df[3].values
             if df_col is None:
                 self.df[col_name] = False

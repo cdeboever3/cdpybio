@@ -45,7 +45,7 @@ def parse_alignment_summary_metrics(fn):
         Data from output file.
 
     """
-    df = pd.read_table(fn, index_col=0, skiprows=range(6) + [10, 11]).T
+    df = pd.read_table(fn, index_col=0, skiprows=list(range(6)) + [10, 11]).T
     return df
 
 def parse_mark_duplicate_metrics(fn):

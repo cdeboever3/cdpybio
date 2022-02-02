@@ -1,20 +1,20 @@
 import os
 
-import analysis
-import bedtools
-import biobambam
-import express
-import featureCounts
-import gencode
-import general
-import ldsc
-import moodsext
-import mutect
-import picard
-import plink
-import pysamext
-import star
-import variants
+from . import analysis
+from . import bedtools
+from . import biobambam
+from . import express
+from . import featureCounts
+from . import gencode
+from . import general
+from . import ldsc
+from . import moodsext
+from . import mutect
+from . import picard
+from . import plink
+from . import pysamext
+from . import star
+from . import variants
 
 _root = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 

@@ -6,7 +6,7 @@ import pandas as pd
 import pybedtools as pbt
 import pysam
 
-from general import parse_region
+from .general import parse_region
 
 def get_region_nt_counts(region, bam, stranded=False):
     """
@@ -130,9 +130,9 @@ def _pos_nt(pr, pos, stranded=False):
 
     """
     nt = None
-    bases = dict(zip(pr.alignment.get_reference_positions(), 
-                     list(pr.alignment.seq.upper())))
-    if pos in bases.keys():
+    bases = dict(list(zip(pr.alignment.get_reference_positions(), 
+                     list(pr.alignment.seq.upper()))))
+    if pos in list(bases.keys()):
         nt = bases[pos]
     if nt and stranded:
         strand = None
@@ -198,7 +198,7 @@ def nt_counts(bam, positions, stranded=False, vcf=False, bed=False):
     if bed:
         df = pbt.BedTool(positions).to_dataframe()
     elif vcf:
-        from variants import vcf_as_df
+        from .variants import vcf_as_df
         tdf = vcf_as_df(positions)
         df = pd.DataFrame(index=tdf.index)
         df['chrom'] = tdf.CHROM

@@ -41,8 +41,8 @@ def estimate_allele_frequency(ac, an, a=1, b=100):
 
     """
     # Credible interval is 95% highest posterior density
-    td = dict(zip(['ci_lower', 'ci_upper'], 
-                  stats.beta(a + ac, b + an - ac).interval(0.95)))
+    td = dict(list(zip(['ci_lower', 'ci_upper'], 
+                  stats.beta(a + ac, b + an - ac).interval(0.95))))
     td['af'] = (a + ac) / (a + b + an)
     td['af_mle'] = np.array(ac).astype(float) / np.array(an)
     out = pd.DataFrame(td)[['af_mle', 'af', 'ci_lower', 'ci_upper']]
@@ -71,12 +71,12 @@ def transform_standard_normal(df):
 def read_gzipped_text_url(url):
     """Read a gzipped text file from a URL and return 
     contents as a string."""
-    import urllib2
+    import urllib.request, urllib.error, urllib.parse
     import zlib
-    from StringIO import StringIO
+    from io import StringIO
 
-    opener = urllib2.build_opener() 
-    request = urllib2.Request(url)
+    opener = urllib.request.build_opener() 
+    request = urllib.request.Request(url)
     request.add_header('Accept-encoding', 'gzip')
     respond = opener.open(request)
     compressedData = respond.read()
@@ -142,12 +142,12 @@ def _sample_names(files, kwargs):
         name in a file path and use a regex to extract it.
 
     """
-    if 'define_sample_name' not in kwargs.keys():
+    if 'define_sample_name' not in list(kwargs.keys()):
         define_sample_name = lambda x: x
     else:
         define_sample_name = kwargs['define_sample_name']
     
-    if 'names' in kwargs.keys():
+    if 'names' in list(kwargs.keys()):
         names = kwargs['names']
     else:
         names = [define_sample_name(f) for f in files]

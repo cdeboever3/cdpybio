@@ -124,7 +124,7 @@ def make_het_matrix(fn):
     vcf_df = vcf_as_df(fn)
     variant_ids = vcf_df.apply(lambda x: df_variant_id(x), axis=1)
     vcf_reader = pyvcf.Reader(open(fn, 'r'))
-    record = vcf_reader.next()
+    record = next(vcf_reader)
     hets = pd.DataFrame(0, index=variant_ids,
                         columns=[x.sample for x in record.samples])
     

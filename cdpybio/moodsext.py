@@ -97,7 +97,7 @@ def find_motif_disruptions(
     import subprocess
     import MOODS
     # import pybedtools as pbt
-    max_motif_length = max([x.shape[0] for x in matrices.values()])
+    max_motif_length = max([x.shape[0] for x in list(matrices.values())])
     chrom, coords = position.split(':')
     start,end = [int(x) for x in coords.split('-')]
     s = '{}:{}-{}'.format(chrom, start - max_motif_length + 1, end +
@@ -112,19 +112,19 @@ def find_motif_disruptions(
     alt_variant_start = max_motif_length - 1
     alt_variant_end = max_motif_length - 1 + len(alt)
 
-    ms = [matrices[x].T.values.tolist() for x in matrices.keys()]
+    ms = [matrices[x].T.values.tolist() for x in list(matrices.keys())]
     ref_res = MOODS.search(ref_seq, ms, 0.001, both_strands=True, 
                            bg=[0.25, 0.25, 0.25, 0.25])
-    ref_res = dict(zip(matrices.keys(), ref_res))
+    ref_res = dict(list(zip(list(matrices.keys()), ref_res)))
     alt_res = MOODS.search(alt_seq, ms, 0.001, both_strands=True, 
                            bg=[0.25, 0.25, 0.25, 0.25])
-    alt_res = dict(zip(matrices.keys(), alt_res))
+    alt_res = dict(list(zip(list(matrices.keys()), alt_res)))
 
     # First we'll remove any motif matches that don't overlap the variant of interest (and thus
     # can't be affected by the variant and will be the same for ref and alt). Then we'll get the 
     # best match for each motif for ref and alt.
     rows = []
-    for motif in ref_res.keys():
+    for motif in list(ref_res.keys()):
         ref_res[motif] = _filter_variant_motif_res(ref_res[motif], ref_variant_start, ref_variant_end, 
                                            matrices[motif].shape[0], ref_seq)
         alt_res[motif] = _filter_variant_motif_res(alt_res[motif], alt_variant_start, alt_variant_end, 

@@ -42,18 +42,18 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True,
             res = subprocess.check_output(
                 'awk \'$35 == "KEEP"\' {}'.format(f), shell=True)
             if res.strip() != '': 
-                columns = [u'contig', u'position', u'context', u'ref_allele',
-                           u'alt_allele', u'tumor_name', u'normal_name',
-                           u'score', u'dbsnp_site', u'covered', u'power',
-                           u'tumor_power', u'normal_power', u'total_pairs',
-                           u'improper_pairs', u'map_Q0_reads', u't_lod_fstar',
-                           u'tumor_f', u'contaminant_fraction',
-                           u'contaminant_lod', u't_ref_count', u't_alt_count',
-                           u't_ref_sum', u't_alt_sum', u't_ref_max_mapq',
-                           u't_alt_max_mapq', u't_ins_count', u't_del_count',
-                           u'normal_best_gt', u'init_n_lod', u'n_ref_count',
-                           u'n_alt_count', u'n_ref_sum', u'n_alt_sum',
-                           u'judgement']
+                columns = ['contig', 'position', 'context', 'ref_allele',
+                           'alt_allele', 'tumor_name', 'normal_name',
+                           'score', 'dbsnp_site', 'covered', 'power',
+                           'tumor_power', 'normal_power', 'total_pairs',
+                           'improper_pairs', 'map_Q0_reads', 't_lod_fstar',
+                           'tumor_f', 'contaminant_fraction',
+                           'contaminant_lod', 't_ref_count', 't_alt_count',
+                           't_ref_sum', 't_alt_sum', 't_ref_max_mapq',
+                           't_alt_max_mapq', 't_ins_count', 't_del_count',
+                           'normal_best_gt', 'init_n_lod', 'n_ref_count',
+                           'n_alt_count', 'n_ref_sum', 'n_alt_sum',
+                           'judgement']
                 tdf = pd.DataFrame(
                     [x.split('\t') for x in res.strip().split('\n')],
                     columns=columns)
@@ -73,7 +73,7 @@ def read_variants(fns, remove=['DBSNP'], keep_only=True,
         tdf = tdf[tdf.n_ref_count + tdf.n_alt_count > min_normal_cov]
         variants.append(tdf)
     variants = pd.concat(variants)
-    variants.index = range(variants.shape[0])
+    variants.index = list(range(variants.shape[0]))
     return variants
 
 def mutect_to_bed(df):
