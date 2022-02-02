@@ -1,5 +1,25 @@
 import os
 
+__version__ = '0.0.8'
+
+__all__ = [
+    "analysis",
+    "bedtools",
+    "biobambam",
+    "express",
+    "featureCounts",
+    "gencode",
+    "general",
+    "ldsc",
+    "moodsext",
+    "mutect",
+    "picard",
+    "plink",
+    "pysamext",
+    "star",
+    "variants",
+]
+
 from . import analysis
 from . import bedtools
 from . import biobambam
