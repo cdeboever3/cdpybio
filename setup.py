@@ -10,7 +10,7 @@ except(IOError, ImportError):
 setup(
     name = 'cdpybio',
     packages=['cdpybio'],
-    version = '0.0.7',
+    version = '0.0.8',
     author = 'Christopher DeBoever',
     author_email = 'cdeboever3@gmail.com',
     description = ('A collection of useful methods for working with various '
